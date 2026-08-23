@@ -46,6 +46,7 @@ project.fragment.lock.json
 # Publish
 publish/
 publish-output/
+artifacts/
 
 # Native / AOT
 *.pdb
