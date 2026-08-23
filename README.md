@@ -27,7 +27,7 @@ flowchart LR
     P -->|GrpcModel IR| E[Emitters]
     E --> C[Generated C# .g.cs<br/>messages + service + client + DI]
     E --> PR[Generated .proto.cs<br/>proto descriptor]
-    E --> PX[Generated {Service}Proxy<br/>gRPC to REST gateway]
+    E --> PX["Generated {Service}Proxy<br/>gRPC to REST gateway"]
     C --> R[Google.Protobuf]
     C --> S[Grpc.Core / Grpc.Net.Client]
     PX --> H[HttpRestClient + IProxyCache + IKeyProvider]
