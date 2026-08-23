@@ -56,7 +56,6 @@ internal static class ServiceEmitter
                 w.Line("return global::Grpc.Core.ServerServiceDefinition.CreateBuilder()");
                 foreach (var rpc in svc.RpcMethods)
                 {
-                    // Unary handlers live on the base as <Name>Handler; streaming methods bind directly.
                     var handler = rpc.Kind == RpcKind.Unary ? $"{rpc.Name}Handler" : rpc.Name;
                     w.Line($"    .AddMethod(Method_{rpc.Name}, serviceBase.{handler})");
                 }
@@ -115,7 +114,7 @@ internal static class ServiceEmitter
             w.Line();
         }
 
-        // ---- C# 14 convenience client (top-level, primary constructor, GrpcChannel) ----
+        // ---- C# 14 convenience client ----
         if (item.EmitClient)
         {
             w.Line("[global::System.CodeDom.Compiler.GeneratedCode(\"SharpPortico\", \"1.0.0\")]");
@@ -129,26 +128,25 @@ internal static class ServiceEmitter
                 {
                     if (rpc.Kind == RpcKind.Unary)
                     {
-                        // request object overload
-                        w.Line($"public async global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}Async({rpc.RequestType} request, global::System.Threading.CancellationToken ct = default)");
-                        w.Line($"    => await {rpc.Name}Async(request, cancellationToken: ct);");
+                        // request object overload (headers = per-call cache bypass / client key)
+                        w.Line($"public async global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}Async({rpc.RequestType} request, global::Grpc.Core.Metadata? headers = null, global::System.Threading.CancellationToken ct = default)");
+                        w.Line($"    => await {rpc.Name}Async(request, headers, deadline: null, cancellationToken: ct);");
                         w.Line();
 
-                        // convenience overload when request has a single field
                         var single = SingleRequestField(model, rpc);
+                        var resp = SingleResponseField(model, rpc);
+
                         if (single is not null)
                         {
                             w.Line($"public async global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}Async({single.CsType} {SingleParamName(single)}, global::System.Threading.CancellationToken ct = default)");
-                            w.Line($"    => await {rpc.Name}Async(new {rpc.RequestType} {{ {single.Name} = {SingleParamName(single)} }}, cancellationToken: ct);");
+                            w.Line($"    => await {rpc.Name}Async(new {rpc.RequestType} {{ {single.Name} = {SingleParamName(single)} }}, headers: null, ct);");
                             w.Line();
                         }
 
-                        // value overload when response has a single field
-                        var resp = SingleResponseField(model, rpc);
                         if (resp is not null)
                         {
                             w.Line($"public async global::System.Threading.Tasks.Task<{ElementType(resp)}> {rpc.Name}{resp.Name}Async({rpc.RequestType} request, global::System.Threading.CancellationToken ct = default)");
-                            w.Line($"    => (await {rpc.Name}Async(request, cancellationToken: ct)).{resp.Name};");
+                            w.Line($"    => (await {rpc.Name}Async(request, headers: null, ct)).{resp.Name};");
                             w.Line();
 
                             if (single is not null)
@@ -289,8 +287,6 @@ internal static class ServiceEmitter
 
     private static string ElementType(FieldModel f)
     {
-        // Repeated response fields (e.g. array responses) expose the whole collection,
-        // not a single element.
         if (f.IsRepeated)
         {
             var elem = f.Kind switch

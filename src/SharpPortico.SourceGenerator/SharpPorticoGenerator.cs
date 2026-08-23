@@ -50,14 +50,21 @@ public sealed class SharpPorticoGenerator : IIncrementalGenerator
         // The attribute stream is kept as the left side: when both an attribute and an
         // AdditionalFiles entry describe the same spec (as the sample does), the dedup
         // below keys on the file name and the attribute item wins.
-        var workItems = attributeRequests
-            .Select(static (req, _) => req?.ToWorkItem() ?? (OpenApiWorkItem?)null)
+        // Project both request types to OpenApiWorkItem explicitly.
+        var attributeWorkItems = attributeRequests
+            .Select(static (req, _) => req is null ? (OpenApiWorkItem?)null : (OpenApiWorkItem?)req.ToWorkItem())
             .Where(static w => w is not null)
             .Select(static (w, _) => w!)
             .Collect()
-            .Combine(additionalFiles
-                .Select(static (f, _) => f.ToWorkItem())
-                .Collect())
+            .WithTrackingName("SP_AttributeWorkItems");
+
+        var fileWorkItems = additionalFiles
+            .Select(static (f, _) => (OpenApiWorkItem)f.ToWorkItem())
+            .Collect()
+            .WithTrackingName("SP_FileWorkItems");
+
+        var workItems = attributeWorkItems
+            .Combine(fileWorkItems)
             .SelectMany(static (pair, _) =>
             {
                 var (attrs, files) = pair;

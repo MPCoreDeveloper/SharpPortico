@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using SharpPortico.Generator.Model;
 
@@ -11,23 +12,7 @@ internal sealed record AttributeRequest(
     string FilePath,
     string? ServiceName,
     string? NamespaceName,
-    string? AssemblyName,
-    bool EmitProtoFile,
-    bool EmitClient,
-    bool EmitServer,
-    bool EmitDependencyInjection,
-    bool RespectStreamingHints,
-    bool EmitDiagnosticsForUnmappableConstructs,
-    bool GenerateAuthMetadataHelpers,
-    bool GenerateAuthInterceptors,
-    bool DetectPagination,
-    string PaginationPageParameter,
-    string PaginationLimitParameter,
-    string PaginationCursorParameter,
-    string PaginationNextPageTokenParameter,
-    bool EmitGoogleRpcStatusWrapper,
-    string ServiceNameSuffix,
-    int LargePayloadStreamingThresholdBytes)
+    ImmutableDictionary<string, object?> NamedValues)
 {
     /// <summary>
     /// Reads the attribute data into a strongly-typed request. Returns <c>null</c>
@@ -55,34 +40,26 @@ internal sealed record AttributeRequest(
 
         if (file is null) return null;
 
-        var assemblyName = context.TargetSymbol.ContainingAssembly?.Name;
+        var named = ImmutableDictionary.CreateBuilder<string, object?>(StringComparer.Ordinal);
+        foreach (var n in attr.NamedArguments)
+        {
+            named[n.Key] = n.Value.Value;
+        }
 
-        bool GetBool(string name, bool fallback) { foreach (var n in attr.NamedArguments) if (n.Key == name && n.Value.Value is bool b) return b; return fallback; }
-        string GetString(string name, string fallback) { foreach (var n in attr.NamedArguments) if (n.Key == name && n.Value.Value is string s) return s; return fallback; }
-        int GetInt(string name, int fallback) { foreach (var n in attr.NamedArguments) if (n.Key == name && n.Value.Value is int i) return i; return fallback; }
-
-        return new AttributeRequest(
-            FilePath: file,
-            ServiceName: serviceName,
-            NamespaceName: namespaceName,
-            AssemblyName: assemblyName,
-            EmitProtoFile: GetBool("EmitProtoFile", true),
-            EmitClient: GetBool("EmitClient", true),
-            EmitServer: GetBool("EmitServer", true),
-            EmitDependencyInjection: GetBool("EmitDependencyInjection", true),
-            RespectStreamingHints: GetBool("RespectStreamingHints", true),
-            EmitDiagnosticsForUnmappableConstructs: GetBool("EmitDiagnosticsForUnmappableConstructs", true),
-            GenerateAuthMetadataHelpers: GetBool("GenerateAuthMetadataHelpers", true),
-            GenerateAuthInterceptors: GetBool("GenerateAuthInterceptors", true),
-            DetectPagination: GetBool("DetectPagination", true),
-            PaginationPageParameter: GetString("PaginationPageParameter", "page"),
-            PaginationLimitParameter: GetString("PaginationLimitParameter", "limit"),
-            PaginationCursorParameter: GetString("PaginationCursorParameter", "cursor"),
-            PaginationNextPageTokenParameter: GetString("PaginationNextPageTokenParameter", "next_page_token"),
-            EmitGoogleRpcStatusWrapper: GetBool("EmitGoogleRpcStatusWrapper", true),
-            ServiceNameSuffix: GetString("ServiceNameSuffix", "Service"),
-            LargePayloadStreamingThresholdBytes: GetInt("LargePayloadStreamingThresholdBytes", 1000000));
+        return new AttributeRequest(file, serviceName, namespaceName, named.ToImmutable());
     }
+
+    private bool GetBool(string name, bool fallback)
+        => NamedValues.TryGetValue(name, out var v) && v is bool b ? b : fallback;
+
+    private string GetString(string name, string fallback)
+        => NamedValues.TryGetValue(name, out var v) && v is string s ? s : fallback;
+
+    private int GetInt(string name, int fallback)
+        => NamedValues.TryGetValue(name, out var v) && v is int i ? i : fallback;
+
+    private SharpPortico.ClientKeyMode GetEnum(string name, SharpPortico.ClientKeyMode fallback)
+        => NamedValues.TryGetValue(name, out var v) && v is int i ? (SharpPortico.ClientKeyMode)i : fallback;
 
     /// <summary>
     /// Converts this attribute request into a pipeline work item. Content is resolved
@@ -99,27 +76,35 @@ internal sealed record AttributeRequest(
             ServiceName,
             NamespaceName,
             Content: string.Empty,
-            EmitProtoFile,
-            EmitClient,
-            EmitServer,
-            EmitDependencyInjection,
-            RespectStreamingHints,
-            EmitDiagnosticsForUnmappableConstructs,
-            GenerateAuthMetadataHelpers,
-            GenerateAuthInterceptors,
-            DetectPagination,
-            PaginationPageParameter,
-            PaginationLimitParameter,
-            PaginationCursorParameter,
-            PaginationNextPageTokenParameter,
-            EmitGoogleRpcStatusWrapper,
-            ServiceNameSuffix,
-            LargePayloadStreamingThresholdBytes);
+            EmitProtoFile: GetBool("EmitProtoFile", true),
+            EmitClient: GetBool("EmitClient", true),
+            EmitServer: GetBool("EmitServer", true),
+            EmitDependencyInjection: GetBool("EmitDependencyInjection", true),
+            RespectStreamingHints: GetBool("RespectStreamingHints", true),
+            EmitDiagnosticsForUnmappableConstructs: GetBool("EmitDiagnosticsForUnmappableConstructs", true),
+            GenerateAuthMetadataHelpers: GetBool("GenerateAuthMetadataHelpers", true),
+            GenerateAuthInterceptors: GetBool("GenerateAuthInterceptors", true),
+            DetectPagination: GetBool("DetectPagination", true),
+            PaginationPageParameter: GetString("PaginationPageParameter", "page"),
+            PaginationLimitParameter: GetString("PaginationLimitParameter", "limit"),
+            PaginationCursorParameter: GetString("PaginationCursorParameter", "cursor"),
+            PaginationNextPageTokenParameter: GetString("PaginationNextPageTokenParameter", "next_page_token"),
+            EmitGoogleRpcStatusWrapper: GetBool("EmitGoogleRpcStatusWrapper", true),
+            ServiceNameSuffix: GetString("ServiceNameSuffix", "Service"),
+            LargePayloadStreamingThresholdBytes: GetInt("LargePayloadStreamingThresholdBytes", 1000000),
+            EnableProxyGeneration: GetBool("EnableProxyGeneration", false),
+            ProxyBaseUrl: GetString("ProxyBaseUrl", null!),
+            ProxyApiKeyHeaderName: GetString("ProxyApiKeyHeaderName", "X-Api-Key"),
+            ProxyCacheTtlSeconds: GetInt("ProxyCacheTtlSeconds", 60),
+            ProxyBypassCacheMetadataKey: GetString("ProxyBypassCacheMetadataKey", "x-portico-bypass-cache"),
+            ProxyClientKeyHeaderName: GetString("ProxyClientKeyHeaderName", "x-portico-key"),
+            ProxyClientKeyMode: (int)GetEnum("ProxyClientKeyMode", SharpPortico.ClientKeyMode.None),
+            ProxyAuditEnabled: GetBool("ProxyAuditEnabled", false));
     }
 }
 
 /// <summary>
-/// A generation request derived from an <c>&lt;AdditionalFiles&gt;</c> YAML/JSON spec file.
+/// A generation request derived from an <c><AdditionalFiles></c> YAML/JSON spec file.
 /// </summary>
 internal sealed record AdditionalFileRequest(
     string Path,

@@ -119,3 +119,19 @@ public enum NamingConvention
     /// <summary>Preserve the original OpenAPI identifier verbatim.</summary>
     Original = 3
 }
+
+/// <summary>
+/// Inbound authentication mode for the generated gRPC-to-REST proxy.
+/// Numeric values mirror <c>SharpPortico.Proxy.ClientKeyMode</c>.
+/// </summary>
+public enum ClientKeyMode
+{
+    /// <summary>No inbound client authentication.</summary>
+    None = 0,
+
+    /// <summary>Forward the client key 1:1 as the outbound API key.</summary>
+    Forward = 1,
+
+    /// <summary>Validate a Portico (ULID) client key and use the configured outbound key.</summary>
+    Own = 2
+}

@@ -16,7 +16,27 @@ public sealed record GrpcModel(
     ImmutableArray<MessageModel> Messages,
     ImmutableArray<ServiceModel> Services,
     ImmutableArray<EnumModel> Enums,
-    ImmutableArray<AuthSchemeModel> AuthSchemes);
+    ImmutableArray<AuthSchemeModel> AuthSchemes,
+    ProxyConfigModel? Proxy = null);
+
+/// <summary>Proxy (gRPC-to-REST) generation configuration, populated when proxy mode is enabled.</summary>
+public sealed record ProxyConfigModel(
+    bool Enabled,
+    string BaseUrl,
+    string ApiKeyHeaderName,
+    int CacheTtlSeconds,
+    string BypassCacheMetadataKey,
+    string ClientKeyHeaderName,
+    int ClientKeyMode,
+    bool AuditEnabled);
+
+/// <summary>HTTP metadata for one RPC needed to forward calls to the legacy REST service.</summary>
+public sealed record HttpOperationModel(
+    string HttpMethod,
+    string OriginalPath,
+    string? QueryParameterNamesCsv,
+    string? RequestBodyFieldName,
+    string? ResponseFieldName);
 
 public sealed record MessageModel(
     string Name,
@@ -65,7 +85,8 @@ public sealed record RpcModel(
     RpcKind Kind,
     bool HasPagination,
     string? RequestStreamingMessage = null,
-    string? ResponseStreamingMessage = null);
+    string? ResponseStreamingMessage = null,
+    HttpOperationModel? Http = null);
 
 public enum RpcKind
 {
@@ -114,4 +135,12 @@ public sealed record OpenApiWorkItem(
     string PaginationNextPageTokenParameter,
     bool EmitGoogleRpcStatusWrapper,
     string ServiceNameSuffix,
-    int LargePayloadStreamingThresholdBytes);
+    int LargePayloadStreamingThresholdBytes,
+    bool EnableProxyGeneration = false,
+    string? ProxyBaseUrl = null,
+    string ProxyApiKeyHeaderName = "X-Api-Key",
+    int ProxyCacheTtlSeconds = 60,
+    string ProxyBypassCacheMetadataKey = "x-portico-bypass-cache",
+    string ProxyClientKeyHeaderName = "x-portico-key",
+    int ProxyClientKeyMode = 0,
+    bool ProxyAuditEnabled = false);

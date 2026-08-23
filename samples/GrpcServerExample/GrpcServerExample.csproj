@@ -26,6 +26,7 @@
     <Analyzer Include="$(SharpPorticoGeneratorOutDir)Microsoft.OpenApi.dll" />
     <Analyzer Include="$(SharpPorticoGeneratorOutDir)Microsoft.OpenApi.Readers.dll" />
     <Analyzer Include="$(SharpPorticoGeneratorOutDir)SharpYaml.dll" />
+    <Analyzer Include="$(SharpPorticoGeneratorOutDir)SharpPortico.Abstractions.dll" />
   </ItemGroup>
 
   <ItemGroup>

@@ -132,4 +132,32 @@ public sealed class OpenApiToGrpcAttribute : Attribute
 
     /// <summary>When <c>true</c>, generated C# uses file-scoped namespaces.</summary>
     public bool UseFileScopedNamespaces { get; set; } = true;
+
+    // ---- Proxy options (gRPC -> legacy REST gateway) ----
+
+    /// <summary>When <c>true</c>, a REST proxy (<c>{Service}Proxy : ServiceBase</c>) is
+    /// generated that forwards gRPC calls to the legacy OpenAPI service over HTTP.</summary>
+    public bool EnableProxyGeneration { get; set; }
+
+    /// <summary>Base URL of the legacy REST service. When omitted, the first value of the
+    /// OpenAPI <c>servers[].url</c> is used.</summary>
+    public string? ProxyBaseUrl { get; set; }
+
+    /// <summary>Outbound API-key header name (default <c>X-Api-Key</c>).</summary>
+    public string ProxyApiKeyHeaderName { get; set; } = "X-Api-Key";
+
+    /// <summary>Default response cache TTL in seconds (default 60).</summary>
+    public int ProxyCacheTtlSeconds { get; set; } = 60;
+
+    /// <summary>gRPC metadata key used for the per-call cache bypass (default <c>x-portico-bypass-cache</c>).</summary>
+    public string ProxyBypassCacheMetadataKey { get; set; } = "x-portico-bypass-cache";
+
+    /// <summary>gRPC metadata key carrying the client key (default <c>x-portico-key</c>).</summary>
+    public string ProxyClientKeyHeaderName { get; set; } = "x-portico-key";
+
+    /// <summary>Inbound client-key mode: <see cref="ClientKeyMode"/>. Default None.</summary>
+    public ClientKeyMode ProxyClientKeyMode { get; set; } = ClientKeyMode.None;
+
+    /// <summary>When <c>true</c>, the generated proxy logs an audit entry per call.</summary>
+    public bool ProxyAuditEnabled { get; set; }
 }

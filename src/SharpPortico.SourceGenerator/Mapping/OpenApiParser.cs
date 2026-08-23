@@ -133,6 +133,24 @@ internal static class OpenApiParser
             authSchemes = MapAuthSchemes(document);
         }
 
+        // 7) Proxy config (gRPC -> legacy REST gateway)
+        ProxyConfigModel? proxy = null;
+        if (item.EnableProxyGeneration)
+        {
+            var baseUrl = !string.IsNullOrWhiteSpace(item.ProxyBaseUrl)
+                ? item.ProxyBaseUrl!
+                : ResolveBaseUrl(document);
+            proxy = new ProxyConfigModel(
+                Enabled: true,
+                BaseUrl: baseUrl,
+                ApiKeyHeaderName: item.ProxyApiKeyHeaderName,
+                CacheTtlSeconds: item.ProxyCacheTtlSeconds,
+                BypassCacheMetadataKey: item.ProxyBypassCacheMetadataKey,
+                ClientKeyHeaderName: item.ProxyClientKeyHeaderName,
+                ClientKeyMode: item.ProxyClientKeyMode,
+                AuditEnabled: item.ProxyAuditEnabled);
+        }
+
         var model = new GrpcModel(
             serviceName,
             ns,
@@ -141,7 +159,8 @@ internal static class OpenApiParser
             allMessages.ToImmutable(),
             ImmutableArray.Create(new ServiceModel(serviceName, rpcs.ToImmutable())),
             allEnums.ToImmutable(),
-            authSchemes);
+            authSchemes,
+            proxy);
 
         return ParseResult.Success(item, model, diags.ToImmutable());
     }
@@ -432,6 +451,9 @@ internal static class OpenApiParser
             return str.Value;
         return null;
     }
+
+    private static string? ResolveBaseUrl(OpenApiDocument document)
+        => document.Servers?.FirstOrDefault()?.Url ?? string.Empty;
 
     private static long EstimatePayloadSize(OpenApiRequestBody body)
     {

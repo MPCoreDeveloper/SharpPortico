@@ -45,6 +45,8 @@ internal static class CodeEmitter
         {
             MessageEmitter.EmitAll(w, model);
             ServiceEmitter.Emit(w, model, item);
+            if (model.Proxy is { Enabled: true })
+                ProxyEmitter.Emit(w, model, item);
         });
         builder.Add((hint, w.ToString()));
 
