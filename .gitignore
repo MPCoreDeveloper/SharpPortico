@@ -1,0 +1,82 @@
+# Build outputs
+bin/
+obj/
+artifacts/
+[Bb]uild/
+[Bb]in/
+[Oo]ut/
+out/
+
+# Visual Studio
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Test results
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+coverage.json
+coverlet/
+
+# NuGet
+*.nupkg
+*.snupkg
+*.nuget.g.props
+*.nuget.g.targets
+*.nupkg.metadata
+*.cache
+*.orig
+packages/
+project.lock.json
+project.fragment.lock.json
+
+# Publish
+publish/
+publish-output/
+
+# Native / AOT
+*.pdb
+*.ipdb
+*.ildb
+*.dll
+*.exe
+*.so
+*.dylib
+*.bin
+*.a
+*.o
+
+# Roslyn generated files (checked-in snapshots excluded via !)
+Generated/
+*.Generated.cs
+
+# osx / windows
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# User-specific files
+*.rsuser
+*.local
+*.publish

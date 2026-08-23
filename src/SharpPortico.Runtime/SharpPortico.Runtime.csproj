@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(SharpPorticoNetTargetFramework)</TargetFramework>
+    <RootNamespace>SharpPortico</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <Description>Tiny AOT-safe runtime helpers used by SharpPortico-generated gRPC code.</Description>
+    <PackageId>SharpPortico.Runtime</PackageId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Core.Api" />
+  </ItemGroup>
+
+</Project>

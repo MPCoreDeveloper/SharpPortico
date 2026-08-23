@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SharpPortico.Abstractions/SharpPortico.Abstractions.csproj" />
+    <Project Path="src/SharpPortico.Runtime/SharpPortico.Runtime.csproj" />
+    <Project Path="src/SharpPortico.SourceGenerator/SharpPortico.SourceGenerator.csproj" />
+    <Project Path="src/SharpPortico.Cli/SharpPortico.Cli.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/GrpcServerExample/GrpcServerExample.csproj" />
+    <Project Path="samples/MinimalApiExample/MinimalApiExample.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SharpPortico.Tests/SharpPortico.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(SharpPorticoNetTargetFramework)</TargetFramework>
+    <RootNamespace>SharpPortico.Cli</RootNamespace>
+    <ToolCommandName>sharpportico</ToolCommandName>
+    <PackAsTool>true</PackAsTool>
+    <PackageId>SharpPortico.Cli</PackageId>
+    <Description>Command-line companion for the SharpPortico OpenAPI -> gRPC source generator.</Description>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Microsoft.OpenApi.Readers" />
+    <PackageReference Include="SharpYaml" />
+  </ItemGroup>
+
+</Project>

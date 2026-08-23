@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore SharpPortico.slnx
+
+      - name: Build
+        run: dotnet build SharpPortico.slnx -c Release --no-restore
+
+      - name: Test
+        run: dotnet test tests/SharpPortico.Tests/SharpPortico.Tests.csproj -c Release --no-restore
+
+      - name: Pack SourceGenerator
+        run: dotnet pack src/SharpPortico.SourceGenerator/SharpPortico.SourceGenerator.csproj -c Release --no-restore
+
+      - name: Pack Runtime
+        run: dotnet pack src/SharpPortico.Runtime/SharpPortico.Runtime.csproj -c Release --no-restore
+
+      - name: Pack CLI (dotnet tool)
+        run: dotnet pack src/SharpPortico.Cli/SharpPortico.Cli.csproj -c Release --no-restore
+
+      - name: Build samples
+        run: |
+          dotnet build samples/GrpcServerExample/GrpcServerExample.csproj -c Release --no-restore
+          dotnet build samples/MinimalApiExample/MinimalApiExample.csproj -c Release --no-restore

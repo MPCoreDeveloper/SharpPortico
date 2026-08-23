@@ -1,0 +1,44 @@
+<Project>
+  <!--
+    SharpPortico centralized build properties.
+
+    .NET forward-compat strategy:
+      * Today:    TFM = net10.0, LangVersion = 14.0 (stable C# 14)
+      * Next wave (net11.0 / C# 15): change the two SharpPortico* properties below
+        and LangVersion. Everything else follows centrally.
+  -->
+
+  <PropertyGroup>
+    <!-- Product TFM for runnable assemblies (runtime, CLI, samples, tests) -->
+    <SharpPorticoNetTargetFramework>net10.0</SharpPorticoNetTargetFramework>
+    <!-- TFM for compiler-hosted assemblies (source generator + abstractions) -->
+    <SharpPorticoGeneratorTargetFramework>netstandard2.0</SharpPorticoGeneratorTargetFramework>
+    <SharpPorticoLangVersion>14.0</SharpPorticoLangVersion>
+    <SharpPorticoProductVersion>0.1.0</SharpPorticoProductVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <LangVersion>$(SharpPorticoLangVersion)</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1701;CS1702</NoWarn>
+    <DebugType>portable</DebugType>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- NuGet metadata shared by all packable projects -->
+    <Authors>MPCoreDeveloper</Authors>
+    <Company>MPCoreDeveloper</Company>
+    <Copyright>Copyright (c) 2026 MPCoreDeveloper</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/MPCoreDeveloper/SharpPortico</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/MPCoreDeveloper/SharpPortico.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>openapi;grpc;protobuf;source-generator;incremental-generator;dotnet;csharp;aot</PackageTags>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(SharpPorticoNetTargetFramework)</TargetFramework>
+    <RootNamespace>SharpPortico.Samples.GrpcServerExample</RootNamespace>
+    <OutputType>Exe</OutputType>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <SharpPorticoGeneratorOutDir>$(MSBuildThisFileDirectory)..\..\src\SharpPortico.SourceGenerator\bin\$(Configuration)\$(SharpPorticoGeneratorTargetFramework)\</SharpPorticoGeneratorOutDir>
+  </PropertyGroup>
+
+  <!-- The [OpenApiToGrpc] attribute comes from SharpPortico.Abstractions -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SharpPortico.Abstractions\SharpPortico.Abstractions.csproj" />
+  </ItemGroup>
+
+  <!--
+    Reference the source generator as an analyzer. The Microsoft.OpenApi assemblies are
+    ALSO registered as analyzers so the Roslyn compiler host can resolve the parser types
+    the generator needs (this mirrors NuGet's automatic handling of files under analyzers/dotnet/cs).
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SharpPortico.SourceGenerator\SharpPortico.SourceGenerator.csproj"
+                      ReferenceOutputAssembly="false"
+                      OutputItemType="Analyzer"
+                      PrivateAssets="all" />
+    <Analyzer Include="$(SharpPorticoGeneratorOutDir)Microsoft.OpenApi.dll" />
+    <Analyzer Include="$(SharpPorticoGeneratorOutDir)Microsoft.OpenApi.Readers.dll" />
+    <Analyzer Include="$(SharpPorticoGeneratorOutDir)SharpYaml.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Core.Api" />
+    <PackageReference Include="Grpc.Core" />
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="openapi/**/*.yaml" />
+  </ItemGroup>
+
+  <!--
+    Generated sources are produced by the analyzer at compile time. The on-disk
+    copies under Generated/ (emitted for debugging/inspection) must not be compiled
+    or they will duplicate the generator output.
+  -->
+  <ItemGroup>
+    <Compile Remove="Generated/**/*.cs" />
+    <None Include="Generated/**/*.cs" />
+  </ItemGroup>
+
+</Project>

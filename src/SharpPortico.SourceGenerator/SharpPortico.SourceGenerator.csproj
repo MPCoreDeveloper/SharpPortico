@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(SharpPorticoGeneratorTargetFramework)</TargetFramework>
+    <RootNamespace>SharpPortico.Generator</RootNamespace>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <!-- RS1035: analyzer file IO is required by AnalyzerDependencyResolver to locate bundled OpenAPI parser DLLs -->
+    <NoWarn>$(NoWarn);RS1035</NoWarn>
+    <IsPackable>true</IsPackable>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <PackageId>SharpPortico.SourceGenerator</PackageId>
+    <Description>Incremental source generator that converts OpenAPI 3.0/3.1 specifications into gRPC services, protobuf messages and modern C# 14 client/server wrappers.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.OpenApi" PrivateAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="Microsoft.OpenApi.Readers" PrivateAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="SharpYaml" PrivateAssets="all" GeneratePathProperty="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SharpPortico.Abstractions\SharpPortico.Abstractions.csproj" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Ship Microsoft.OpenApi assemblies inside the analyzer package -->
+  <ItemGroup>
+    <None Include="$(PkgMicrosoft_OpenApi)\lib\netstandard2.0\Microsoft.OpenApi.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="$(PkgMicrosoft_OpenApi_Readers)\lib\netstandard2.0\Microsoft.OpenApi.Readers.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="$(PkgSharpYaml)\lib\netstandard2.0\SharpYaml.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="$(OutputPath)\SharpPortico.Abstractions.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('$(OutputPath)\SharpPortico.Abstractions.dll')" />
+  </ItemGroup>
+
+  <!-- Copy OpenAPI deps next to the analyzer so project-reference usage works too -->
+  <Target Name="CopyOpenApiDependencies" AfterTargets="Build">
+    <Copy SourceFiles="$(PkgMicrosoft_OpenApi)\lib\netstandard2.0\Microsoft.OpenApi.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(PkgMicrosoft_OpenApi_Readers)\lib\netstandard2.0\Microsoft.OpenApi.Readers.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(PkgSharpYaml)\lib\netstandard2.0\SharpYaml.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>
