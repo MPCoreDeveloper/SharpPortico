@@ -110,7 +110,7 @@ server.Services.Add(UserService.BindService(
 - **Keys never hardcoded**: `IKeyProvider` (config / Key Vault / delegate).
 - **Audit**: `ProxyAuditEnabled = true` (or inject `IProxyAuditLogger`) logs client, RPC, cache-hit, HTTP status.
 
-Live end-to-end demo: `samples/LegacyProxyExample`. Full developer guide: `docs/SharpPortico.md`. NuGet package readme: `docs/README.nuget.md`.
+Live end-to-end demo: `samples/LegacyProxyExample`. Full developer guide: `docs/SharpPortico.md`. NuGet package readmes: `src/SharpPortico.SourceGenerator/README.md`, `src/SharpPortico.Runtime/README.md`, `src/SharpPortico.Cli/README.md`.
 
 ## Repo layout
 

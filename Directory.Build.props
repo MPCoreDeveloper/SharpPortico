@@ -41,15 +41,15 @@
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
 
-    <!-- NuGet: package icon (SharpPortico logo) + package readme + output folder -->
+    <!-- NuGet: package icon (SharpPortico logo) + per-package readme + output folder -->
     <PackageIcon>docs\assets\SharpPortico.jpg</PackageIcon>
-    <PackageReadmeFile>docs\README.nuget.md</PackageReadmeFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts</PackageOutputPath>
   </PropertyGroup>
 
-  <!-- Pack the SharpPortico logo and NuGet readme into every packable project. -->
+  <!-- Pack the SharpPortico logo and each package's short README into every packable project. -->
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)docs\assets\SharpPortico.jpg" Pack="true" PackagePath="docs\assets\SharpPortico.jpg" Visible="false" />
-    <None Include="$(MSBuildThisFileDirectory)docs\README.nuget.md" Pack="true" PackagePath="docs\README.nuget.md" Visible="false" />
+    <None Include="$(MSBuildProjectDirectory)\README.md" Pack="true" PackagePath="\" Visible="false" Condition="Exists('$(MSBuildProjectDirectory)\README.md')" />
   </ItemGroup>
 </Project>
