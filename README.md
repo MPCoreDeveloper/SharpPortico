@@ -136,6 +136,10 @@ SharpPortico/
 dotnet run --project src/SharpPortico.Cli -- generate openapi/petstore.yaml --out out/
 ```
 
+## JavaPortico
+
+Looking for the Java equivalent? **[JavaPortico](https://github.com/MPCoreDeveloper/JavaPortico)** is the Java sibling of SharpPortico — the same OpenAPI → gRPC + protobuf generator and gRPC↔REST proxy pipeline for the Java/Maven ecosystem (JDK 25 LTS), with a matching mapping model, proxy runtime and configuration knobs.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Copyright (c) 2026 MPCoreDeveloper.
