@@ -43,9 +43,15 @@ internal static class Program
         }
 
         string? outDir = null;
-        for (var i = 2; i < args.Length; i++)
+        var i = 2;
+        while (i < args.Length)
         {
-            if (args[i] == "--out" && i + 1 < args.Length) outDir = args[++i];
+            if (args[i] == "--out" && i + 1 < args.Length)
+            {
+                outDir = args[i + 1];
+                i++;
+            }
+            i++;
         }
 
         try
@@ -75,8 +81,8 @@ internal static class Program
 
             if (outDir is not null)
             {
-                Directory.CreateDirectory(outDir!);
-                var target = Path.Combine(outDir!, Path.GetFileNameWithoutExtension(file) + ".generated.proto.txt");
+                Directory.CreateDirectory(outDir);
+                var target = Path.Combine(outDir, Path.GetFileNameWithoutExtension(file) + ".generated.proto.txt");
                 await File.WriteAllTextAsync(target, text).ConfigureAwait(false);
                 Console.WriteLine($"preview written to {target}");
             }

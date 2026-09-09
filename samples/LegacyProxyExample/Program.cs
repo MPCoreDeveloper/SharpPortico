@@ -13,6 +13,7 @@ using SharpPortico.Samples.LegacyProxy.Generated;
 using SharpPortico.Samples.LegacyProxyExample;
 
 const string LegacyKey = "legacy-secret-key";
+const string LegacyApiKeyHeader = "X-Api-Key";
 const int LegacyRestPort = 5099;
 const int GrpcPort = 50053;
 
@@ -31,7 +32,7 @@ var pets = new Dictionary<long, Pet>
 
 app.MapGet("/pets", (HttpContext ctx) =>
 {
-    if (ctx.Request.Headers["X-Api-Key"].ToString() != LegacyKey)
+    if (ctx.Request.Headers[LegacyApiKeyHeader].ToString() != LegacyKey)
         return Results.Unauthorized();
     Interlocked.Increment(ref restCallCount);
     return Results.Json(pets.Values.ToList());
@@ -39,7 +40,7 @@ app.MapGet("/pets", (HttpContext ctx) =>
 
 app.MapGet("/pets/{petId:long}", (HttpContext ctx, long petId) =>
 {
-    if (ctx.Request.Headers["X-Api-Key"].ToString() != LegacyKey)
+    if (ctx.Request.Headers[LegacyApiKeyHeader].ToString() != LegacyKey)
         return Results.Unauthorized();
     Interlocked.Increment(ref restCallCount);
     return pets.TryGetValue(petId, out var pet) ? Results.Json(pet) : Results.NotFound();
@@ -47,7 +48,7 @@ app.MapGet("/pets/{petId:long}", (HttpContext ctx, long petId) =>
 
 app.MapPost("/pets", async (HttpContext ctx) =>
 {
-    if (ctx.Request.Headers["X-Api-Key"].ToString() != LegacyKey)
+    if (ctx.Request.Headers[LegacyApiKeyHeader].ToString() != LegacyKey)
         return Results.Unauthorized();
     var pet = await ctx.Request.ReadFromJsonAsync<Pet>();
     if (pet is null) return Results.BadRequest();
@@ -60,7 +61,7 @@ await app.StartAsync();
 // Wait until the legacy REST service accepts connections (avoids startup races).
 using (var probeClient = new HttpClient { BaseAddress = new Uri($"http://localhost:{LegacyRestPort}") })
 {
-    probeClient.DefaultRequestHeaders.Add("X-Api-Key", LegacyKey);
+    probeClient.DefaultRequestHeaders.Add(LegacyApiKeyHeader, LegacyKey);
     for (var attempt = 0; attempt < 50; attempt++)
     {
         try
@@ -87,7 +88,7 @@ using var provider = services.BuildServiceProvider();
 var options = new ProxyOptions
 {
     BaseUrl = $"http://localhost:{LegacyRestPort}",
-    ApiKeyHeaderName = "X-Api-Key",
+    ApiKeyHeaderName = LegacyApiKeyHeader,
     CacheTtl = TimeSpan.FromSeconds(60),
     CacheReadsOnly = true,
     ClientKeyMode = ClientKeyMode.None

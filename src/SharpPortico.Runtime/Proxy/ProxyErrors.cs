@@ -9,7 +9,7 @@ namespace SharpPortico.Proxy;
 public sealed class ProxyRestException : Exception
 {
     public ProxyRestException(int statusCode, string? responseBody, Exception? inner = null)
-        : base($"Legacy REST service returned HTTP {(int)statusCode}", inner)
+        : base($"Legacy REST service returned HTTP {statusCode}", inner)
     {
         StatusCode = statusCode;
         ResponseBody = responseBody;

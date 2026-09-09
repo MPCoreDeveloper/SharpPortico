@@ -52,9 +52,9 @@ public sealed class SharpPorticoGenerator : IIncrementalGenerator
         // below keys on the file name and the attribute item wins.
         // Project both request types to OpenApiWorkItem explicitly.
         var attributeWorkItems = attributeRequests
-            .Select(static (req, _) => req is null ? (OpenApiWorkItem?)null : (OpenApiWorkItem?)req.ToWorkItem())
+            .Select(static (req, _) => req?.ToWorkItem())
             .Where(static w => w is not null)
-            .Select(static (w, _) => w!)
+            .Select(static (w, _) => w)
             .Collect()
             .WithTrackingName("SP_AttributeWorkItems");
 
@@ -65,21 +65,7 @@ public sealed class SharpPorticoGenerator : IIncrementalGenerator
 
         var workItems = attributeWorkItems
             .Combine(fileWorkItems)
-            .SelectMany(static (pair, _) =>
-            {
-                var (attrs, files) = pair;
-                var all = ImmutableArray.CreateBuilder<OpenApiWorkItem>(attrs.Length);
-                foreach (var a in attrs) all.Add(a);
-                var explicitNames = attrs
-                    .Select(static a => System.IO.Path.GetFileName(a.FilePath))
-                    .Aggregate(new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase), (set, n) => { if (!string.IsNullOrEmpty(n)) set.Add(n); return set; });
-                foreach (var f in files)
-                {
-                    if (!explicitNames.Contains(System.IO.Path.GetFileName(f.FilePath)))
-                        all.Add(f);
-                }
-                return all.ToImmutable();
-            })
+            .SelectMany(static (pair, _) => MergeWorkItems(pair))
             .WithTrackingName("SP_WorkItems");
 
         // 4) Parse + map into immutable IR; content for attribute items is resolved
@@ -94,20 +80,50 @@ public sealed class SharpPorticoGenerator : IIncrementalGenerator
             .WithTrackingName("SP_Parse");
 
         // 5) Report diagnostics from parsing/mapping.
-        context.RegisterSourceOutput(parsed, static (spc, result) =>
-        {
-            foreach (var d in result.Diagnostics)
-                spc.ReportDiagnostic(Diagnostic.Create(d.Descriptor, d.Location, d.Arguments));
-        });
+        context.RegisterSourceOutput(parsed, static (spc, result) => ReportParseDiagnostics(spc, result));
 
         // 6) Emit generated C# (messages + gRPC contract + client + DI).
-        context.RegisterSourceOutput(parsed, static (spc, result) =>
+        context.RegisterSourceOutput(parsed, static (spc, result) => EmitParseResultSources(spc, result));
+    }
+
+    private static ImmutableArray<OpenApiWorkItem> MergeWorkItems(
+        (ImmutableArray<OpenApiWorkItem> Attributes, ImmutableArray<OpenApiWorkItem> Files) pair)
+    {
+        var (attrs, files) = pair;
+        var all = ImmutableArray.CreateBuilder<OpenApiWorkItem>(attrs.Length);
+        foreach (var a in attrs)
         {
-            if (!result.IsSuccess || result.Model is null) return;
-            var sources = CodeEmitter.Emit(result.Model!, result.Item);
-            foreach (var (hint, text) in sources)
-                spc.AddSource(hint, SourceText.From(text, System.Text.Encoding.UTF8));
-        });
+            all.Add(a);
+        }
+
+        var explicitNames = new HashSet<string>(
+            attrs.Select(static a => System.IO.Path.GetFileName(a.FilePath))
+                 .Where(static n => !string.IsNullOrEmpty(n)),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var f in files.Where(f => !explicitNames.Contains(System.IO.Path.GetFileName(f.FilePath))))
+        {
+            all.Add(f);
+        }
+        return all.ToImmutable();
+    }
+
+    private static void ReportParseDiagnostics(SourceProductionContext spc, ParseResult result)
+    {
+        foreach (var d in result.Diagnostics)
+        {
+            spc.ReportDiagnostic(Diagnostic.Create(d.Descriptor, d.Location, d.Arguments));
+        }
+    }
+
+    private static void EmitParseResultSources(SourceProductionContext spc, ParseResult result)
+    {
+        if (!result.IsSuccess || result.Model is null) return;
+        var sources = CodeEmitter.Emit(result.Model, result.Item);
+        foreach (var (hint, text) in sources)
+        {
+            spc.AddSource(hint, SourceText.From(text, System.Text.Encoding.UTF8));
+        }
     }
 
     private static bool IsSupportedSpecFile(AdditionalText file)

@@ -10,6 +10,8 @@ namespace SharpPortico.Generator.Emit;
 /// </summary>
 internal static class ProxyEmitter
 {
+    private const string RequestPrefix = "request.";
+
     public static void Emit(CodeWriter w, GrpcModel model, OpenApiWorkItem item)
     {
         var svc = model.Services[0];
@@ -88,7 +90,7 @@ internal static class ProxyEmitter
 
         foreach (var f in reqMsg.Fields)
         {
-            if (f.Name.StartsWith("_") || f.Kind == FieldKind.Message) continue;
+            if (f.Name[0] == '_' || f.Kind == FieldKind.Message) continue;
             // Every set scalar is registered both as a path param (case-insensitively
             // substituted by HttpRestClient) and as a query param; parameters absent
             // from the OpenAPI path template are ignored by the REST client.
@@ -191,7 +193,7 @@ internal static class ProxyEmitter
             {
                 w.Line($"if (!{first.ToString().ToLowerInvariant()}) sb.Append(',');");
                 w.Line($"sb.Append(\"\\\"{f.ProtoName}\\\":\");");
-                EmitFieldAppend(w, f, model);
+                EmitFieldAppend(w, f);
                 first = false;
             }
             w.Line("sb.Append('}');");
@@ -207,10 +209,10 @@ internal static class ProxyEmitter
             {
                 w.Line($"if (el.ValueKind == global::System.Text.Json.JsonValueKind.Object && el.TryGetProperty(\"{f.ProtoName}\", out var _{f.Name.ToLowerInvariant()}))");
                 w.Open();
-                EmitFieldRead(w, f, model);
+                EmitFieldRead(w, f);
                 w.Close();
             }
-            EmitRootFallback(w, msg, model);
+            EmitRootFallback(w, msg);
             w.Close();
             w.Line("}");
 
@@ -226,7 +228,7 @@ internal static class ProxyEmitter
         }
     }
 
-    private static void EmitFieldAppend(CodeWriter w, FieldModel f, GrpcModel model)
+    private static void EmitFieldAppend(CodeWriter w, FieldModel f)
     {
         if (f.IsRepeated)
         {
@@ -235,7 +237,7 @@ internal static class ProxyEmitter
             w.Line($"var {first} = true;");
             if (f.Kind == FieldKind.Message)
             {
-                w.Line($"foreach (var item in msg.{f.Name}) {{ if (!{first}) sb.Append(','); {first} = false; sb.Append(Serialize{camel(f.TypeName!)}(item)); }}");
+                w.Line($"foreach (var item in msg.{f.Name}) {{ if (!{first}) sb.Append(','); {first} = false; sb.Append(Serialize{camel(f.TypeName)}(item)); }}");
             }
             else
             {
@@ -257,7 +259,7 @@ internal static class ProxyEmitter
                 w.Line($"sb.Append((int)msg.{f.Name});");
                 break;
             case FieldKind.Message:
-                w.Line($"if (msg.{f.Name} is not null) sb.Append(Serialize{camel(f.TypeName!)}(msg.{f.Name})); else sb.Append(\"null\");");
+                w.Line($"if (msg.{f.Name} is not null) sb.Append(Serialize{camel(f.TypeName)}(msg.{f.Name})); else sb.Append(\"null\");");
                 break;
             default:
                 w.Line($"sb.Append(global::System.Globalization.CultureInfo.InvariantCulture, $\"{{msg.{f.Name}}}\");");
@@ -273,9 +275,9 @@ internal static class ProxyEmitter
         _ => "sb.Append(global::System.Globalization.CultureInfo.InvariantCulture, $\"{item}\");"
     };
 
-    private static void EmitRootFallback(CodeWriter w, MessageModel msg, GrpcModel model)
+    private static void EmitRootFallback(CodeWriter w, MessageModel msg)
     {
-        var nonSentinel = msg.Fields.Where(f => !f.Name.StartsWith("_")).ToList();
+        var nonSentinel = msg.Fields.Where(f => f.Name.Length > 0 && f.Name[0] != '_').ToList();
 
         var singleMsg = nonSentinel.Count == 1 && nonSentinel[0].Kind == FieldKind.Message && !nonSentinel[0].IsRepeated
             ? nonSentinel[0]
@@ -284,7 +286,7 @@ internal static class ProxyEmitter
         {
             w.Line($"if (el.ValueKind == global::System.Text.Json.JsonValueKind.Object && msg.{singleMsg.Name} is null)");
             w.Open();
-            w.Line($"{{ var n = new {singleMsg.TypeName}(); Parse{camel(singleMsg.TypeName!)}Element(el, n); msg.{singleMsg.Name} = n; }}");
+            w.Line($"{{ var n = new {singleMsg.TypeName}(); Parse{camel(singleMsg.TypeName)}Element(el, n); msg.{singleMsg.Name} = n; }}");
             w.Close();
             return;
         }
@@ -296,12 +298,12 @@ internal static class ProxyEmitter
         {
             w.Line($"if (el.ValueKind == global::System.Text.Json.JsonValueKind.Array)");
             w.Open();
-            w.Line($"foreach (var itemEl in el.EnumerateArray()) {{ var n = new {singleRepeatedMsg.TypeName}(); Parse{camel(singleRepeatedMsg.TypeName!)}Element(itemEl, n); msg.{singleRepeatedMsg.Name}.Add(n); }}");
+            w.Line($"foreach (var itemEl in el.EnumerateArray()) {{ var n = new {singleRepeatedMsg.TypeName}(); Parse{camel(singleRepeatedMsg.TypeName)}Element(itemEl, n); msg.{singleRepeatedMsg.Name}.Add(n); }}");
             w.Close();
         }
     }
 
-    private static void EmitFieldRead(CodeWriter w, FieldModel f, GrpcModel model)
+    private static void EmitFieldRead(CodeWriter w, FieldModel f)
     {
         var prop = "msg." + f.Name;
         var e = "_" + f.Name.ToLowerInvariant();
@@ -312,7 +314,7 @@ internal static class ProxyEmitter
             w.Open();
             if (f.Kind == FieldKind.Message)
             {
-                w.Line($"foreach (var itemEl in {e}.EnumerateArray()) {{ var item = new {f.TypeName}(); Parse{camel(f.TypeName!)}Element(itemEl, item); {prop}.Add(item); }}");
+                w.Line($"foreach (var itemEl in {e}.EnumerateArray()) {{ var item = new {f.TypeName}(); Parse{camel(f.TypeName)}Element(itemEl, item); {prop}.Add(item); }}");
             }
             else
             {
@@ -328,7 +330,7 @@ internal static class ProxyEmitter
                 w.Line($"{prop} = {e}.ValueKind == global::System.Text.Json.JsonValueKind.Null ? string.Empty : {e}.GetString() ?? string.Empty;");
                 break;
             case FieldKind.Message:
-                w.Line($"if ({e}.ValueKind != global::System.Text.Json.JsonValueKind.Null) {{ var nested = new {f.TypeName}(); Parse{camel(f.TypeName!)}Element({e}, nested); {prop} = nested; }}");
+                w.Line($"if ({e}.ValueKind != global::System.Text.Json.JsonValueKind.Null) {{ var nested = new {f.TypeName}(); Parse{camel(f.TypeName)}Element({e}, nested); {prop} = nested; }}");
                 break;
             case FieldKind.Int32:
                 w.Line($"{prop} = {e}.GetInt32();");
@@ -376,15 +378,15 @@ internal static class ProxyEmitter
 
     private static string IsSet(FieldModel f) => f.Kind switch
     {
-        FieldKind.String => "request." + f.Name + ".Length != 0",
-        FieldKind.Bool => "request." + f.Name,
-        _ => "request." + f.Name + " != 0"
+        FieldKind.String => RequestPrefix + f.Name + ".Length != 0",
+        FieldKind.Bool => RequestPrefix + f.Name,
+        _ => RequestPrefix + f.Name + " != 0"
     };
 
     private static string ToStringCall(FieldModel f) => f.Kind switch
     {
-        FieldKind.String => "request." + f.Name,
-        _ => "global::System.Convert.ToString(request." + f.Name + ", global::System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty"
+        FieldKind.String => RequestPrefix + f.Name,
+        _ => "global::System.Convert.ToString(" + RequestPrefix + f.Name + ", global::System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty"
     };
 
     private static string camel(string s) => char.ToLowerInvariant(s[0]) + s.Substring(1);

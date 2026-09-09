@@ -1,4 +1,3 @@
-using System;
 using System.Linq;
 using System.Text;
 using SharpPortico.Generator.Model;
@@ -12,231 +11,271 @@ namespace SharpPortico.Generator.Emit;
 /// </summary>
 internal static class ServiceEmitter
 {
+    private const string GeneratedCodeAttribute =
+        "[global::System.CodeDom.Compiler.GeneratedCode(\"SharpPortico\", \"1.0.0\")]";
+
     public static void Emit(CodeWriter w, GrpcModel model, OpenApiWorkItem item)
     {
         var svc = model.Services[0];
+        EmitContractClass(w, model, svc);
+        if (item.EmitServer) EmitServerBase(w, svc);
+        if (item.EmitClient) EmitConvenienceClient(w, model, svc);
+        if (item.EmitDependencyInjection) EmitDiExtensions(w, svc);
+        if (item.GenerateAuthMetadataHelpers) EmitAuthHelpers(w, model, svc);
+    }
 
+    private static void EmitContractClass(CodeWriter w, GrpcModel model, ServiceModel svc)
+    {
         // ---- Contract class (static descriptors + nested low-level client) ----
-        w.Line("[global::System.CodeDom.Compiler.GeneratedCode(\"SharpPortico\", \"1.0.0\")]");
+        w.Line(GeneratedCodeAttribute);
         w.Block($"public static partial class {svc.Name}", () =>
         {
             w.Line($"public const string ServiceFullName = \"{model.ProtoPackage}.{svc.Name}\";");
             w.Line();
+            EmitMethodDescriptors(w, svc);
+            w.Line();
+            EmitMarshaller(w);
+            w.Line();
+            EmitBindService(w, svc);
+            w.Line();
+            EmitNestedClient(w, svc);
+        });
+        w.Line();
+    }
+
+    private static void EmitMethodDescriptors(CodeWriter w, ServiceModel svc)
+    {
+        foreach (var rpc in svc.RpcMethods)
+        {
+            var methodKind = rpc.Kind switch
+            {
+                RpcKind.ServerStreaming => "ServerStreaming",
+                RpcKind.ClientStreaming => "ClientStreaming",
+                RpcKind.BidiStreaming => "DuplexStreaming",
+                _ => "Unary"
+            };
+            w.Line($"public static readonly global::Grpc.Core.Method<{rpc.RequestType}, {rpc.ResponseType}> Method_{rpc.Name} =");
+            w.Line($"    new(global::Grpc.Core.MethodType.{methodKind}, ServiceFullName, \"{rpc.Name}\",");
+            w.Line($"        MarshallerFor<{rpc.RequestType}>(), MarshallerFor<{rpc.ResponseType}>());");
+        }
+    }
+
+    private static void EmitMarshaller(CodeWriter w)
+    {
+        w.Line("private static global::Grpc.Core.Marshaller<T> MarshallerFor<T>() where T : class, global::Google.Protobuf.IMessage<T>, new()");
+        w.Line("    => global::Grpc.Core.Marshallers.Create<T>(");
+        w.Line("        (T msg) =>");
+        w.Line("        {");
+        w.Line("            var ms = new global::System.IO.MemoryStream();");
+        w.Line("            using var output = new global::Google.Protobuf.CodedOutputStream(ms, leaveOpen: true);");
+        w.Line("            msg.WriteTo(output);");
+        w.Line("            output.Flush();");
+        w.Line("            return ms.ToArray();");
+        w.Line("        },");
+        w.Line("        (byte[] data) => { var m = new T(); m.MergeFrom(new global::Google.Protobuf.CodedInputStream(data)); return m; });");
+    }
+
+    private static void EmitBindService(CodeWriter w, ServiceModel svc)
+    {
+        w.Block($"public static global::Grpc.Core.ServerServiceDefinition BindService({svc.Name}Base serviceBase)", () =>
+        {
+            w.Line("return global::Grpc.Core.ServerServiceDefinition.CreateBuilder()");
+            foreach (var rpc in svc.RpcMethods)
+            {
+                var handler = rpc.Kind == RpcKind.Unary ? $"{rpc.Name}Handler" : rpc.Name;
+                w.Line($"    .AddMethod(Method_{rpc.Name}, serviceBase.{handler})");
+            }
+            w.Line("    .Build();");
+        });
+    }
+
+    private static void EmitNestedClient(CodeWriter w, ServiceModel svc)
+    {
+        // Nested low-level client (ClientBase)
+        w.Line($"public partial class {svc.Name}Client : global::Grpc.Core.ClientBase<{svc.Name}Client>");
+        w.Line("{");
+        w.Open();
+        w.Line($"internal {svc.Name}Client(global::Grpc.Core.CallInvoker callInvoker) : base(callInvoker) {{ }}");
+        w.Line($"internal {svc.Name}Client(global::Grpc.Net.Client.GrpcChannel channel) : base(channel.CreateCallInvoker()) {{ }}");
+        w.Line($"protected {svc.Name}Client() : base() {{ }}");
+        w.Line($"protected {svc.Name}Client(ClientBaseConfiguration configuration) : base(configuration) {{ }}");
+        w.Line($"protected override {svc.Name}Client NewInstance(ClientBaseConfiguration configuration) => new(configuration);");
+        w.Line();
+        EmitCallMethods(w, svc);
+        w.Close();
+        w.Line("}");
+    }
+
+    private static void EmitServerBase(CodeWriter w, ServiceModel svc)
+    {
+        // ---- Server base ----
+        w.Line(GeneratedCodeAttribute);
+        w.Block($"public abstract partial class {svc.Name}Base", () =>
+        {
+            foreach (var rpc in svc.RpcMethods)
+            {
+                switch (rpc.Kind)
+                {
+                    case RpcKind.Unary:
+                        w.Line($"public virtual global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}Async({rpc.RequestType} request, global::Grpc.Core.ServerCallContext context)");
+                        w.Line("    => throw new global::Grpc.Core.RpcException(new global::Grpc.Core.Status(global::Grpc.Core.StatusCode.Unimplemented, \"\"));");
+                        w.Line($"public global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}Handler({rpc.RequestType} request, global::Grpc.Core.ServerCallContext context)");
+                        w.Line($"    => {rpc.Name}Async(request, context);");
+                        break;
+                    case RpcKind.ServerStreaming:
+                        w.Line($"public virtual global::System.Threading.Tasks.Task {rpc.Name}({rpc.RequestType} request, global::Grpc.Core.IServerStreamWriter<{rpc.ResponseType}> responseStream, global::Grpc.Core.ServerCallContext context)");
+                        w.Line("    => global::System.Threading.Tasks.Task.CompletedTask;");
+                        break;
+                    case RpcKind.ClientStreaming:
+                        w.Line($"public virtual global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}(global::Grpc.Core.IAsyncStreamReader<{rpc.RequestType}> requestStream, global::Grpc.Core.ServerCallContext context)");
+                        w.Line("    => throw new global::Grpc.Core.RpcException(new global::Grpc.Core.Status(global::Grpc.Core.StatusCode.Unimplemented, \"\"));");
+                        break;
+                    case RpcKind.BidiStreaming:
+                        w.Line($"public virtual global::System.Threading.Tasks.Task {rpc.Name}(global::Grpc.Core.IAsyncStreamReader<{rpc.RequestType}> requestStream, global::Grpc.Core.IServerStreamWriter<{rpc.ResponseType}> responseStream, global::Grpc.Core.ServerCallContext context)");
+                        w.Line("    => global::System.Threading.Tasks.Task.CompletedTask;");
+                        break;
+                }
+                w.Line();
+            }
+        });
+        w.Line();
+    }
+
+    private static void EmitConvenienceClient(CodeWriter w, GrpcModel model, ServiceModel svc)
+    {
+        // ---- C# 14 convenience client ----
+        w.Line(GeneratedCodeAttribute);
+        w.Block($"public sealed partial class {svc.Name}Client(global::Grpc.Net.Client.GrpcChannel channel) : {svc.Name}.{svc.Name}Client(channel)", () =>
+        {
+            w.Line($"public static {svc.Name}Client Create(global::Grpc.Net.Client.GrpcChannel channel) => new(channel);");
+            w.Line($"public static {svc.Name}Client Create(global::Grpc.Core.ChannelBase channel) => new(channel as global::Grpc.Net.Client.GrpcChannel ?? throw new global::System.NotSupportedException(\"GrpcChannel required\"));");
+            w.Line();
 
             foreach (var rpc in svc.RpcMethods)
             {
-                var methodKind = rpc.Kind switch
+                if (rpc.Kind == RpcKind.Unary)
                 {
-                    RpcKind.ServerStreaming => "ServerStreaming",
-                    RpcKind.ClientStreaming => "ClientStreaming",
-                    RpcKind.BidiStreaming => "DuplexStreaming",
-                    _ => "Unary"
-                };
-                w.Line($"public static readonly global::Grpc.Core.Method<{rpc.RequestType}, {rpc.ResponseType}> Method_{rpc.Name} =");
-                w.Line($"    new(global::Grpc.Core.MethodType.{methodKind}, ServiceFullName, \"{rpc.Name}\",");
-                w.Line($"        MarshallerFor<{rpc.RequestType}>(), MarshallerFor<{rpc.ResponseType}>());");
-            }
-            w.Line();
-
-            w.Line("private static global::Grpc.Core.Marshaller<T> MarshallerFor<T>() where T : class, global::Google.Protobuf.IMessage<T>, new()");
-            w.Line("    => global::Grpc.Core.Marshallers.Create<T>(");
-            w.Line("        (T msg) =>");
-            w.Line("        {");
-            w.Line("            var ms = new global::System.IO.MemoryStream();");
-            w.Line("            using var output = new global::Google.Protobuf.CodedOutputStream(ms, leaveOpen: true);");
-            w.Line("            msg.WriteTo(output);");
-            w.Line("            output.Flush();");
-            w.Line("            return ms.ToArray();");
-            w.Line("        },");
-            w.Line("        (byte[] data) => { var m = new T(); m.MergeFrom(new global::Google.Protobuf.CodedInputStream(data)); return m; });");
-            w.Line();
-
-            w.Block($"public static global::Grpc.Core.ServerServiceDefinition BindService({svc.Name}Base serviceBase)", () =>
-            {
-                w.Line("return global::Grpc.Core.ServerServiceDefinition.CreateBuilder()");
-                foreach (var rpc in svc.RpcMethods)
-                {
-                    var handler = rpc.Kind == RpcKind.Unary ? $"{rpc.Name}Handler" : rpc.Name;
-                    w.Line($"    .AddMethod(Method_{rpc.Name}, serviceBase.{handler})");
+                    EmitUnaryConvenienceMethods(w, model, rpc);
                 }
-                w.Line("    .Build();");
-            });
-            w.Line();
-
-            // Nested low-level client (ClientBase)
-            w.Line($"public partial class {svc.Name}Client : global::Grpc.Core.ClientBase<{svc.Name}Client>");
-            w.Line("{");
-            w.Open();
-            w.Line($"internal {svc.Name}Client(global::Grpc.Core.CallInvoker callInvoker) : base(callInvoker) {{ }}");
-            w.Line($"internal {svc.Name}Client(global::Grpc.Net.Client.GrpcChannel channel) : base(channel.CreateCallInvoker()) {{ }}");
-            w.Line($"protected {svc.Name}Client() : base() {{ }}");
-            w.Line($"protected {svc.Name}Client(ClientBaseConfiguration configuration) : base(configuration) {{ }}");
-            w.Line($"protected override {svc.Name}Client NewInstance(ClientBaseConfiguration configuration) => new(configuration);");
-            w.Line();
-            EmitCallMethods(w, svc, isNested: true);
-            w.Close();
-            w.Line("}");
+                else
+                {
+                    EmitStreamingConvenienceMethod(w, rpc);
+                }
+            }
         });
         w.Line();
+    }
 
-        // ---- Server base ----
-        if (item.EmitServer)
+    private static void EmitUnaryConvenienceMethods(CodeWriter w, GrpcModel model, RpcModel rpc)
+    {
+        // request object overload (headers = per-call cache bypass / client key)
+        w.Line($"public async global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}Async({rpc.RequestType} request, global::Grpc.Core.Metadata? headers = null, global::System.Threading.CancellationToken ct = default)");
+        w.Line($"    => await {rpc.Name}Async(request, headers, deadline: null, cancellationToken: ct);");
+        w.Line();
+
+        var single = SingleRequestField(model, rpc);
+        var resp = SingleResponseField(model, rpc);
+
+        if (single is not null)
         {
-            w.Line("[global::System.CodeDom.Compiler.GeneratedCode(\"SharpPortico\", \"1.0.0\")]");
-            w.Block($"public abstract partial class {svc.Name}Base", () =>
-            {
-                foreach (var rpc in svc.RpcMethods)
-                {
-                    switch (rpc.Kind)
-                    {
-                        case RpcKind.Unary:
-                            w.Line($"public virtual global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}Async({rpc.RequestType} request, global::Grpc.Core.ServerCallContext context)");
-                            w.Line("    => throw new global::Grpc.Core.RpcException(new global::Grpc.Core.Status(global::Grpc.Core.StatusCode.Unimplemented, \"\"));");
-                            w.Line($"public global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}Handler({rpc.RequestType} request, global::Grpc.Core.ServerCallContext context)");
-                            w.Line($"    => {rpc.Name}Async(request, context);");
-                            break;
-                        case RpcKind.ServerStreaming:
-                            w.Line($"public virtual global::System.Threading.Tasks.Task {rpc.Name}({rpc.RequestType} request, global::Grpc.Core.IServerStreamWriter<{rpc.ResponseType}> responseStream, global::Grpc.Core.ServerCallContext context)");
-                            w.Line("    => global::System.Threading.Tasks.Task.CompletedTask;");
-                            break;
-                        case RpcKind.ClientStreaming:
-                            w.Line($"public virtual global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}(global::Grpc.Core.IAsyncStreamReader<{rpc.RequestType}> requestStream, global::Grpc.Core.ServerCallContext context)");
-                            w.Line("    => throw new global::Grpc.Core.RpcException(new global::Grpc.Core.Status(global::Grpc.Core.StatusCode.Unimplemented, \"\"));");
-                            break;
-                        case RpcKind.BidiStreaming:
-                            w.Line($"public virtual global::System.Threading.Tasks.Task {rpc.Name}(global::Grpc.Core.IAsyncStreamReader<{rpc.RequestType}> requestStream, global::Grpc.Core.IServerStreamWriter<{rpc.ResponseType}> responseStream, global::Grpc.Core.ServerCallContext context)");
-                            w.Line("    => global::System.Threading.Tasks.Task.CompletedTask;");
-                            break;
-                    }
-                    w.Line();
-                }
-            });
+            w.Line($"public async global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}Async({single.CsType} {SingleParamName(single)}, global::System.Threading.CancellationToken ct = default)");
+            w.Line($"    => await {rpc.Name}Async(new {rpc.RequestType} {{ {single.Name} = {SingleParamName(single)} }}, headers: null, ct);");
             w.Line();
         }
 
-        // ---- C# 14 convenience client ----
-        if (item.EmitClient)
+        if (resp is not null)
         {
-            w.Line("[global::System.CodeDom.Compiler.GeneratedCode(\"SharpPortico\", \"1.0.0\")]");
-            w.Block($"public sealed partial class {svc.Name}Client(global::Grpc.Net.Client.GrpcChannel channel) : {svc.Name}.{svc.Name}Client(channel)", () =>
-            {
-                w.Line($"public static {svc.Name}Client Create(global::Grpc.Net.Client.GrpcChannel channel) => new(channel);");
-                w.Line($"public static {svc.Name}Client Create(global::Grpc.Core.ChannelBase channel) => new(channel as global::Grpc.Net.Client.GrpcChannel ?? throw new global::System.NotSupportedException(\"GrpcChannel required\"));");
-                w.Line();
-
-                foreach (var rpc in svc.RpcMethods)
-                {
-                    if (rpc.Kind == RpcKind.Unary)
-                    {
-                        // request object overload (headers = per-call cache bypass / client key)
-                        w.Line($"public async global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}Async({rpc.RequestType} request, global::Grpc.Core.Metadata? headers = null, global::System.Threading.CancellationToken ct = default)");
-                        w.Line($"    => await {rpc.Name}Async(request, headers, deadline: null, cancellationToken: ct);");
-                        w.Line();
-
-                        var single = SingleRequestField(model, rpc);
-                        var resp = SingleResponseField(model, rpc);
-
-                        if (single is not null)
-                        {
-                            w.Line($"public async global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}Async({single.CsType} {SingleParamName(single)}, global::System.Threading.CancellationToken ct = default)");
-                            w.Line($"    => await {rpc.Name}Async(new {rpc.RequestType} {{ {single.Name} = {SingleParamName(single)} }}, headers: null, ct);");
-                            w.Line();
-                        }
-
-                        if (resp is not null)
-                        {
-                            w.Line($"public async global::System.Threading.Tasks.Task<{ElementType(resp)}> {rpc.Name}{resp.Name}Async({rpc.RequestType} request, global::System.Threading.CancellationToken ct = default)");
-                            w.Line($"    => (await {rpc.Name}Async(request, headers: null, ct)).{resp.Name};");
-                            w.Line();
-
-                            if (single is not null)
-                            {
-                                w.Line($"public async global::System.Threading.Tasks.Task<{ElementType(resp)}> {rpc.Name}{resp.Name}Async({single.CsType} {SingleParamName(single)}, global::System.Threading.CancellationToken ct = default)");
-                                w.Line($"    => await {rpc.Name}{resp.Name}Async(new {rpc.RequestType} {{ {single.Name} = {SingleParamName(single)} }}, ct);");
-                                w.Line();
-                            }
-                        }
-                    }
-                    else if (rpc.Kind == RpcKind.ServerStreaming)
-                    {
-                        w.Line($"public global::Grpc.Core.AsyncServerStreamingCall<{rpc.ResponseType}> {rpc.Name}Stream({rpc.RequestType} request, global::System.Threading.CancellationToken ct = default)");
-                        w.Line($"    => {rpc.Name}(request, cancellationToken: ct);");
-                        w.Line();
-                    }
-                    else if (rpc.Kind == RpcKind.ClientStreaming)
-                    {
-                        w.Line($"public global::Grpc.Core.AsyncClientStreamingCall<{rpc.RequestType}, {rpc.ResponseType}> {rpc.Name}Stream(global::System.Threading.CancellationToken ct = default)");
-                        w.Line($"    => {rpc.Name}(cancellationToken: ct);");
-                        w.Line();
-                    }
-                    else
-                    {
-                        w.Line($"public global::Grpc.Core.AsyncDuplexStreamingCall<{rpc.RequestType}, {rpc.ResponseType}> {rpc.Name}Stream(global::System.Threading.CancellationToken ct = default)");
-                        w.Line($"    => {rpc.Name}(cancellationToken: ct);");
-                        w.Line();
-                    }
-                }
-            });
+            w.Line($"public async global::System.Threading.Tasks.Task<{ElementType(resp)}> {rpc.Name}{resp.Name}Async({rpc.RequestType} request, global::System.Threading.CancellationToken ct = default)");
+            w.Line($"    => (await {rpc.Name}Async(request, headers: null, ct)).{resp.Name};");
             w.Line();
-        }
 
-        // ---- DI ----
-        if (item.EmitDependencyInjection)
-        {
-            w.Line("[global::System.CodeDom.Compiler.GeneratedCode(\"SharpPortico\", \"1.0.0\")]");
-            w.Block("public static class ServiceCollectionExtensions", () =>
+            if (single is not null)
             {
-                w.Line($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddSharpPortico{svc.Name}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
-                w.Line("{");
-                w.Open();
-                w.Line("global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, provider =>");
-                w.Line("{");
-                w.Open();
-                w.Line("var channel = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Grpc.Net.Client.GrpcChannel>(provider);");
-                w.Line($"return new {svc.Name}Client(channel);");
-                w.Close();
-                w.Line("});");
-                w.Line("return services;");
-                w.Close();
-                w.Line("}");
-            });
-            w.Line();
-        }
-
-        // ---- Auth metadata helpers ----
-        if (item.GenerateAuthMetadataHelpers)
-        {
-            foreach (var scheme in model.AuthSchemes)
-            {
-                var suffix = SanitizeIdent(scheme.Name);
-                w.Block($"public static partial class {svc.Name}Auth", () =>
-                {
-                    switch (scheme.Kind)
-                    {
-                        case AuthKind.Bearer:
-                            w.Line("public static global::Grpc.Core.Metadata CreateBearerTokenMetadata(string token)");
-                            w.Line("    => new() { { \"authorization\", $\"Bearer {token}\" } };");
-                            break;
-                        case AuthKind.ApiKey:
-                            w.Line("public static global::Grpc.Core.Metadata CreateApiKeyMetadata(string key)");
-                            w.Line($"    => new() {{ {{ \"{scheme.HeaderName ?? "x-api-key"}\", key }} }};");
-                            break;
-                        case AuthKind.OAuth2:
-                            w.Line("public static global::Grpc.Core.Metadata CreateOAuth2Metadata(string accessToken)");
-                            w.Line("    => new() { { \"authorization\", $\"Bearer {accessToken}\" } };");
-                            break;
-                        default:
-                            w.Line($"public static global::Grpc.Core.Metadata Create{suffix}Metadata(string value)");
-                            w.Line($"    => new() {{ {{ \"{suffix.ToLowerInvariant()}\", value }} }};");
-                            break;
-                    }
-                });
+                w.Line($"public async global::System.Threading.Tasks.Task<{ElementType(resp)}> {rpc.Name}{resp.Name}Async({single.CsType} {SingleParamName(single)}, global::System.Threading.CancellationToken ct = default)");
+                w.Line($"    => await {rpc.Name}{resp.Name}Async(new {rpc.RequestType} {{ {single.Name} = {SingleParamName(single)} }}, ct);");
                 w.Line();
             }
         }
     }
 
-    private static void EmitCallMethods(CodeWriter w, ServiceModel svc, bool isNested)
+    private static void EmitStreamingConvenienceMethod(CodeWriter w, RpcModel rpc)
+    {
+        if (rpc.Kind == RpcKind.ServerStreaming)
+        {
+            w.Line($"public global::Grpc.Core.AsyncServerStreamingCall<{rpc.ResponseType}> {rpc.Name}Stream({rpc.RequestType} request, global::System.Threading.CancellationToken ct = default)");
+            w.Line($"    => {rpc.Name}(request, cancellationToken: ct);");
+            w.Line();
+        }
+        else if (rpc.Kind == RpcKind.ClientStreaming)
+        {
+            w.Line($"public global::Grpc.Core.AsyncClientStreamingCall<{rpc.RequestType}, {rpc.ResponseType}> {rpc.Name}Stream(global::System.Threading.CancellationToken ct = default)");
+            w.Line($"    => {rpc.Name}(cancellationToken: ct);");
+            w.Line();
+        }
+        else
+        {
+            w.Line($"public global::Grpc.Core.AsyncDuplexStreamingCall<{rpc.RequestType}, {rpc.ResponseType}> {rpc.Name}Stream(global::System.Threading.CancellationToken ct = default)");
+            w.Line($"    => {rpc.Name}(cancellationToken: ct);");
+            w.Line();
+        }
+    }
+
+    private static void EmitDiExtensions(CodeWriter w, ServiceModel svc)
+    {
+        // ---- DI ----
+        w.Line(GeneratedCodeAttribute);
+        w.Block("public static class ServiceCollectionExtensions", () =>
+        {
+            w.Line($"public static global::Microsoft.Extensions.DependencyInjection.IServiceCollection AddSharpPortico{svc.Name}(this global::Microsoft.Extensions.DependencyInjection.IServiceCollection services)");
+            w.Line("{");
+            w.Open();
+            w.Line("global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, provider =>");
+            w.Line("{");
+            w.Open();
+            w.Line("var channel = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<global::Grpc.Net.Client.GrpcChannel>(provider);");
+            w.Line($"return new {svc.Name}Client(channel);");
+            w.Close();
+            w.Line("});");
+            w.Line("return services;");
+            w.Close();
+            w.Line("}");
+        });
+        w.Line();
+    }
+
+    private static void EmitAuthHelpers(CodeWriter w, GrpcModel model, ServiceModel svc)
+    {
+        // ---- Auth metadata helpers ----
+        foreach (var scheme in model.AuthSchemes)
+        {
+            var suffix = SanitizeIdent(scheme.Name);
+            w.Block($"public static partial class {svc.Name}Auth", () =>
+            {
+                switch (scheme.Kind)
+                {
+                    case AuthKind.Bearer:
+                        w.Line("public static global::Grpc.Core.Metadata CreateBearerTokenMetadata(string token)");
+                        w.Line("    => new() { { \"authorization\", $\"Bearer {token}\" } };");
+                        break;
+                    case AuthKind.ApiKey:
+                        w.Line("public static global::Grpc.Core.Metadata CreateApiKeyMetadata(string key)");
+                        w.Line($"    => new() {{ {{ \"{scheme.HeaderName ?? "x-api-key"}\", key }} }};");
+                        break;
+                    case AuthKind.OAuth2:
+                        w.Line("public static global::Grpc.Core.Metadata CreateOAuth2Metadata(string accessToken)");
+                        w.Line("    => new() { { \"authorization\", $\"Bearer {accessToken}\" } };");
+                        break;
+                    default:
+                        w.Line($"public static global::Grpc.Core.Metadata Create{suffix}Metadata(string value)");
+                        w.Line($"    => new() {{ {{ \"{suffix.ToLowerInvariant()}\", value }} }};");
+                        break;
+                }
+            });
+            w.Line();
+        }
+    }
+
+    private static void EmitCallMethods(CodeWriter w, ServiceModel svc)
     {
         foreach (var rpc in svc.RpcMethods)
         {
@@ -274,14 +313,14 @@ internal static class ServiceEmitter
     private static FieldModel? SingleRequestField(GrpcModel model, RpcModel rpc)
     {
         var msg = model.Messages.FirstOrDefault(m => m.Name == rpc.RequestType);
-        var fields = msg?.Fields.Where(static f => !f.Name.StartsWith("_")).ToArray();
+        var fields = msg?.Fields.Where(static f => f.Name.Length > 0 && f.Name[0] != '_').ToArray();
         return fields is { Length: 1 } ? fields[0] : null;
     }
 
     private static FieldModel? SingleResponseField(GrpcModel model, RpcModel rpc)
     {
         var msg = model.Messages.FirstOrDefault(m => m.Name == rpc.ResponseType);
-        var fields = msg?.Fields.Where(static f => !f.Name.StartsWith("_")).ToArray();
+        var fields = msg?.Fields.Where(static f => f.Name.Length > 0 && f.Name[0] != '_').ToArray();
         return fields is { Length: 1 } ? fields[0] : null;
     }
 
@@ -311,9 +350,9 @@ internal static class ServiceEmitter
     private static string SanitizeIdent(string name)
     {
         var sb = new StringBuilder();
-        foreach (var c in name)
+        foreach (var c in name.Where(static ch => char.IsLetterOrDigit(ch)))
         {
-            if (char.IsLetterOrDigit(c)) sb.Append(c);
+            sb.Append(c);
         }
         if (sb.Length == 0) sb.Append("Auth");
         var s = sb.ToString();

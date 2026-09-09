@@ -93,7 +93,7 @@ internal sealed record AttributeRequest(
             ServiceNameSuffix: GetString("ServiceNameSuffix", "Service"),
             LargePayloadStreamingThresholdBytes: GetInt("LargePayloadStreamingThresholdBytes", 1000000),
             EnableProxyGeneration: GetBool("EnableProxyGeneration", false),
-            ProxyBaseUrl: GetString("ProxyBaseUrl", null!),
+            ProxyBaseUrl: GetString("ProxyBaseUrl", string.Empty),
             ProxyApiKeyHeaderName: GetString("ProxyApiKeyHeaderName", "X-Api-Key"),
             ProxyCacheTtlSeconds: GetInt("ProxyCacheTtlSeconds", 60),
             ProxyBypassCacheMetadataKey: GetString("ProxyBypassCacheMetadataKey", "x-portico-bypass-cache"),

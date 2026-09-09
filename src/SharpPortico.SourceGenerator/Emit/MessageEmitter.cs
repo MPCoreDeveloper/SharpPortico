@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text;
 using SharpPortico.Generator.Model;
 
@@ -40,6 +41,31 @@ internal static class MessageEmitter
         w.Line("{");
         w.Open();
 
+        EmitHeader(w, msg);
+        EmitProperties(w, msg);
+        w.Line("public bool IsInitialized => true;");
+        w.Line();
+        EmitClone(w, msg);
+        w.Line();
+        EmitEquals(w, msg);
+        w.Line();
+        EmitHashCodeAndToString(w, msg);
+        w.Line();
+        EmitCalculateSize(w, msg);
+        w.Line();
+        EmitMergeFromOther(w, msg);
+        w.Line();
+        EmitMergeFromInput(w, msg);
+        w.Line();
+        EmitWriteTo(w, msg);
+        EmitRepeatedCodecs(w, msg);
+
+        w.Close();
+        w.Line("}");
+    }
+
+    private static void EmitHeader(CodeWriter w, MessageModel msg)
+    {
         w.Line($"private static readonly global::Google.Protobuf.MessageParser<{msg.Name}> _parser = new(() => new {msg.Name}());");
         w.Line($"public static global::Google.Protobuf.MessageParser<{msg.Name}> Parser => _parser;");
         w.Line("public global::Google.Protobuf.Reflection.MessageDescriptor Descriptor => null!;");
@@ -48,17 +74,19 @@ internal static class MessageEmitter
         foreach (var f in msg.Fields)
             w.Line($"private const uint {ConstTag(f)} = {Wire.Tag(f.Number, Wire.WireTypeFor(f.Kind))}u;");
         w.Line();
+    }
 
+    private static void EmitProperties(CodeWriter w, MessageModel msg)
+    {
         foreach (var f in msg.Fields)
         {
             EmitProperty(w, f);
             w.Line();
         }
+    }
 
-        w.Line("public bool IsInitialized => true;");
-        w.Line();
-
-        // Clone
+    private static void EmitClone(CodeWriter w, MessageModel msg)
+    {
         w.Block($"public {msg.Name} Clone()", () =>
         {
             w.Line($"var result = new {msg.Name}();");
@@ -79,9 +107,10 @@ internal static class MessageEmitter
             }
             w.Line("return result;");
         });
-        w.Line();
+    }
 
-        // Equals
+    private static void EmitEquals(CodeWriter w, MessageModel msg)
+    {
         w.Block("public override bool Equals(object? other)", () => w.Line($"return Equals(other as {msg.Name});"));
         w.Line();
 
@@ -102,9 +131,10 @@ internal static class MessageEmitter
             }
             w.Line("return true;");
         });
-        w.Line();
+    }
 
-        // GetHashCode
+    private static void EmitHashCodeAndToString(CodeWriter w, MessageModel msg)
+    {
         w.Block("public override int GetHashCode()", () =>
         {
             w.Line("var hash = 1;");
@@ -131,15 +161,16 @@ internal static class MessageEmitter
         w.Block("public override string ToString()", () =>
         {
             w.Line("return \"[" + msg.Name + "] { \"");
-            foreach (var f in msg.Fields)
+            foreach (var name in msg.Fields.Select(static f => f.Name))
             {
-                w.Line($"    + \"{f.Name}=\" + {f.Name} + \", \"");
+                w.Line($"    + \"{name}=\" + {name} + \", \"");
             }
             w.Line("    + \"}\";");
         });
-        w.Line();
+    }
 
-        // CalculateSize
+    private static void EmitCalculateSize(CodeWriter w, MessageModel msg)
+    {
         w.Block("public int CalculateSize()", () =>
         {
             w.Line("var size = 0;");
@@ -149,18 +180,7 @@ internal static class MessageEmitter
 
                 if (f.IsRepeated)
                 {
-                    if (f.Kind == FieldKind.Message)
-                    {
-                        w.Line($"foreach (var item in {f.Name}) size += {tagSize} + global::Google.Protobuf.CodedOutputStream.ComputeMessageSize(item);");
-                    }
-                    else if (f.Kind == FieldKind.Enum)
-                    {
-                        w.Line($"foreach (var item in {f.Name}) size += {tagSize} + global::Google.Protobuf.CodedOutputStream.ComputeInt32Size((int)item);");
-                    }
-                    else
-                    {
-                        w.Line($"foreach (var item in {f.Name}) size += {tagSize} + global::Google.Protobuf.CodedOutputStream.{Wire.ComputeSize(f.Kind)}(item);");
-                    }
+                    EmitRepeatedSizeLine(w, f, tagSize);
                 }
                 else if (f.Kind == FieldKind.Message)
                 {
@@ -186,9 +206,26 @@ internal static class MessageEmitter
             }
             w.Line("return size;");
         });
-        w.Line();
+    }
 
-        // MergeFrom(other)
+    private static void EmitRepeatedSizeLine(CodeWriter w, FieldModel f, string tagSize)
+    {
+        if (f.Kind == FieldKind.Message)
+        {
+            w.Line($"foreach (var item in {f.Name}) size += {tagSize} + global::Google.Protobuf.CodedOutputStream.ComputeMessageSize(item);");
+        }
+        else if (f.Kind == FieldKind.Enum)
+        {
+            w.Line($"foreach (var item in {f.Name}) size += {tagSize} + global::Google.Protobuf.CodedOutputStream.ComputeInt32Size((int)item);");
+        }
+        else
+        {
+            w.Line($"foreach (var item in {f.Name}) size += {tagSize} + global::Google.Protobuf.CodedOutputStream.{Wire.ComputeSize(f.Kind)}(item);");
+        }
+    }
+
+    private static void EmitMergeFromOther(CodeWriter w, MessageModel msg)
+    {
         w.Block($"public void MergeFrom({msg.Name} other)", () =>
         {
             w.Line("if (other is null) return;");
@@ -217,9 +254,10 @@ internal static class MessageEmitter
                 }
             }
         });
-        w.Line();
+    }
 
-        // MergeFrom(CodedInputStream)
+    private static void EmitMergeFromInput(CodeWriter w, MessageModel msg)
+    {
         w.Block("public void MergeFrom(global::Google.Protobuf.CodedInputStream input)", () =>
         {
             w.Line("uint tag;");
@@ -233,34 +271,7 @@ internal static class MessageEmitter
             {
                 w.Line($"case {ConstTag(f)}:");
                 w.Open();
-                if (f.IsRepeated)
-                {
-                    if (f.Kind == FieldKind.Message)
-                    {
-                        w.Line($"{f.Name}.AddEntriesFrom(input, _repeated_{f.Name}_codec);");
-                    }
-                    else if (f.Kind == FieldKind.Enum)
-                    {
-                        w.Line($"var v = input.ReadInt32(); {f.Name}.Add(({f.TypeName})v);");
-                    }
-                    else
-                    {
-                        w.Line($"{f.Name}.AddEntriesFrom(input, _repeated_{f.Name}_codec);");
-                    }
-                }
-                else if (f.Kind == FieldKind.Message)
-                {
-                    w.Line($"if ({f.Name} is null) {f.Name} = new {f.TypeName}();");
-                    w.Line($"input.ReadMessage({f.Name});");
-                }
-                else if (f.Kind == FieldKind.Enum)
-                {
-                    w.Line($"var v = input.ReadInt32(); {f.Name} = ({f.TypeName})v;");
-                }
-                else
-                {
-                    w.Line($"{f.Name} = input.{Wire.ReadCall(f.Kind)};");
-                }
+                EmitCaseBody(w, f);
                 w.Line("break;");
                 w.Close();
             }
@@ -274,27 +285,49 @@ internal static class MessageEmitter
             w.Close();
             w.Line("}");
         });
-        w.Line();
+    }
 
-        // WriteTo
+    private static void EmitCaseBody(CodeWriter w, FieldModel f)
+    {
+        if (f.IsRepeated)
+        {
+            if (f.Kind == FieldKind.Message)
+            {
+                w.Line($"{f.Name}.AddEntriesFrom(input, _repeated_{f.Name}_codec);");
+            }
+            else if (f.Kind == FieldKind.Enum)
+            {
+                w.Line($"var v = input.ReadInt32(); {f.Name}.Add(({f.TypeName})v);");
+            }
+            else
+            {
+                w.Line($"{f.Name}.AddEntriesFrom(input, _repeated_{f.Name}_codec);");
+            }
+        }
+        else if (f.Kind == FieldKind.Message)
+        {
+            w.Line($"if ({f.Name} is null) {f.Name} = new {f.TypeName}();");
+            w.Line($"input.ReadMessage({f.Name});");
+        }
+        else if (f.Kind == FieldKind.Enum)
+        {
+            w.Line($"var v = input.ReadInt32(); {f.Name} = ({f.TypeName})v;");
+        }
+        else
+        {
+            w.Line($"{f.Name} = input.{Wire.ReadCall(f.Kind)};");
+        }
+    }
+
+    private static void EmitWriteTo(CodeWriter w, MessageModel msg)
+    {
         w.Block("public void WriteTo(global::Google.Protobuf.CodedOutputStream output)", () =>
         {
             foreach (var f in msg.Fields)
             {
                 if (f.IsRepeated)
                 {
-                    if (f.Kind == FieldKind.Message)
-                    {
-                        w.Line($"foreach (var item in {f.Name}) {{ output.WriteRawTag({RawTagArgs(f)}); output.WriteMessage(item); }}");
-                    }
-                    else if (f.Kind == FieldKind.Enum)
-                    {
-                        w.Line($"foreach (var item in {f.Name}) {{ output.WriteRawTag({RawTagArgs(f)}); output.WriteInt32((int)item); }}");
-                    }
-                    else
-                    {
-                        w.Line($"foreach (var item in {f.Name}) {{ output.WriteRawTag({RawTagArgs(f)}); output.{Wire.WriteCall(f.Kind)}(item); }}");
-                    }
+                    EmitRepeatedWriteLine(w, f);
                 }
                 else if (f.Kind == FieldKind.Message)
                 {
@@ -319,8 +352,26 @@ internal static class MessageEmitter
                 }
             }
         });
+    }
 
-        // Repeated codecs
+    private static void EmitRepeatedWriteLine(CodeWriter w, FieldModel f)
+    {
+        if (f.Kind == FieldKind.Message)
+        {
+            w.Line($"foreach (var item in {f.Name}) {{ output.WriteRawTag({RawTagArgs(f)}); output.WriteMessage(item); }}");
+        }
+        else if (f.Kind == FieldKind.Enum)
+        {
+            w.Line($"foreach (var item in {f.Name}) {{ output.WriteRawTag({RawTagArgs(f)}); output.WriteInt32((int)item); }}");
+        }
+        else
+        {
+            w.Line($"foreach (var item in {f.Name}) {{ output.WriteRawTag({RawTagArgs(f)}); output.{Wire.WriteCall(f.Kind)}(item); }}");
+        }
+    }
+
+    private static void EmitRepeatedCodecs(CodeWriter w, MessageModel msg)
+    {
         foreach (var f in msg.Fields)
         {
             if (!f.IsRepeated) continue;
@@ -337,9 +388,6 @@ internal static class MessageEmitter
                 w.Line($"private static readonly global::Google.Protobuf.FieldCodec<{f.CsType}> _repeated_{f.Name}_codec = global::Google.Protobuf.FieldCodec.{Wire.FieldCodecFactory(f.Kind)}({ConstTag(f)});");
             }
         }
-
-        w.Close();
-        w.Line("}");
     }
 
     private static void EmitProperty(CodeWriter w, FieldModel f)
