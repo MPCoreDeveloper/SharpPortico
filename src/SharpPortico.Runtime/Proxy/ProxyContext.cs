@@ -66,15 +66,8 @@ public static class ProxyContext
 
     public static ClientIdentity ReadIdentity(ServerCallContext context, string clientKeyHeader)
     {
-        string? key = null;
-        foreach (var entry in context.RequestHeaders)
-        {
-            if (string.Equals(entry.Key, clientKeyHeader, StringComparison.OrdinalIgnoreCase))
-            {
-                key = entry.Value;
-                break;
-            }
-        }
-        return new ClientIdentity(key, context.Peer);
+        var header = context.RequestHeaders.FirstOrDefault(entry =>
+            string.Equals(entry.Key, clientKeyHeader, StringComparison.OrdinalIgnoreCase));
+        return new ClientIdentity(header?.Value, context.Peer);
     }
 }

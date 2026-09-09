@@ -46,7 +46,8 @@ app.MapGet("/pets", (int limit = 20, int page = 1) =>
 
 try
 {
-    await app.RunAsync("http://localhost:5080");
+    // Demo endpoint for the sample app; kept inline intentionally (see README).
+    await app.RunAsync("http://localhost:5080"); // NOSONAR S1075
 }
 finally
 {

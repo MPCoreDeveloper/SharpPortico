@@ -81,7 +81,7 @@ internal static class Program
         Console.WriteLine($"ListPets(limit=1, page=1) -> {pets.Items.Count} pet(s)");
 
         // Serialization round-trip through the generated protobuf messages
-        var pet = petResponse.Data!;
+        var pet = petResponse.Data;
         var bytes = pet.ToByteArray();
         var roundTrip = Pet.Parser.ParseFrom(bytes);
         Console.WriteLine($"Round-trip OK: name={roundTrip.Name}, status={roundTrip.Status}");

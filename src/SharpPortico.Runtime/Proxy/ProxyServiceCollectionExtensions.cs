@@ -55,8 +55,8 @@ public static class ProxyServiceCollectionExtensions
 
     private static void TryRegisterKeyProvider(this IServiceCollection services)
     {
-        // Configuration-backed provider requires Microsoft.Extensions.Configuration.Abstractions;
-        // we register it lazily and let hosts override with AddSharpPorticoKeyProvider.
+        // Config-backed key provider registered lazily; hosts may override it
+        // later via AddSharpPorticoKeyProvider.
         services.AddSingleton<SharpPortico.Proxy.IKeyProvider>(sp =>
         {
             var config = sp.GetService<Microsoft.Extensions.Configuration.IConfiguration>();
