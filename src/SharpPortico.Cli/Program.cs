@@ -18,27 +18,27 @@ internal static class Program
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("usage: dotnet sharpportico generate <openapi.yaml|json> [--out DIR]");
+            await Console.Error.WriteLineAsync("usage: dotnet sharpportico generate <openapi.yaml|json> [--out DIR]");
             return 2;
         }
 
         var command = args[0];
         if (!string.Equals(command, "generate", StringComparison.OrdinalIgnoreCase))
         {
-            Console.Error.WriteLine($"unknown command '{command}'. usage: dotnet sharpportico generate <file>");
+            await Console.Error.WriteLineAsync($"unknown command '{command}'. usage: dotnet sharpportico generate <file>");
             return 2;
         }
 
         if (args.Length < 2)
         {
-            Console.Error.WriteLine("missing spec file. usage: dotnet sharpportico generate <openapi.yaml|json>");
+            await Console.Error.WriteLineAsync("missing spec file. usage: dotnet sharpportico generate <openapi.yaml|json>");
             return 2;
         }
 
         var file = args[1];
         if (!File.Exists(file))
         {
-            Console.Error.WriteLine($"file not found: {file}");
+            await Console.Error.WriteLineAsync($"file not found: {file}");
             return 2;
         }
 
@@ -58,14 +58,14 @@ internal static class Program
             {
                 foreach (var error in diagnostic.Errors)
                 {
-                    Console.Error.WriteLine($"  {error.Message}");
+                    await Console.Error.WriteLineAsync($"  {error.Message}");
                 }
                 return 1;
             }
 
             if (document.Info is null)
             {
-                Console.Error.WriteLine("document has no info section; not an OpenAPI 3.x document?");
+                await Console.Error.WriteLineAsync("document has no info section; not an OpenAPI 3.x document?");
                 return 1;
             }
 
@@ -85,7 +85,7 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"error: {ex.Message}");
+            await Console.Error.WriteLineAsync($"error: {ex.Message}");
             return 1;
         }
     }

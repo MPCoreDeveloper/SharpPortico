@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using SharpPortico.Proxy;
 using SharpPortico.Samples.LegacyProxy.Generated;
+using SharpPortico.Samples.LegacyProxyExample;
 
 const string LegacyKey = "legacy-secret-key";
 const int LegacyRestPort = 5099;
@@ -136,8 +137,3 @@ Console.WriteLine($"TOTAL REST calls: {restCallCount}  (expected 4: get + bypass
 Console.WriteLine("Proxy demo complete.");
 await server.ShutdownAsync();
 await app.StopAsync();
-
-internal sealed class NullAuditLogger : IProxyAuditLogger
-{
-    public void Log(AuditEntry entry) { }
-}
