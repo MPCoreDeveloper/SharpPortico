@@ -59,7 +59,7 @@ public sealed class SharpPorticoGenerator : IIncrementalGenerator
             .WithTrackingName("SP_AttributeWorkItems");
 
         var fileWorkItems = additionalFiles
-            .Select(static (f, _) => (OpenApiWorkItem)f.ToWorkItem())
+            .Select(static (f, _) => f.ToWorkItem())
             .Collect()
             .WithTrackingName("SP_FileWorkItems");
 

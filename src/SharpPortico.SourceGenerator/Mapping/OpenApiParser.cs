@@ -186,15 +186,7 @@ internal static class OpenApiParser
         // Request message: parameters (path/query/header) + body
         var requestFields = ImmutableArray.CreateBuilder<FieldModel>();
         var paramIndex = 0;
-        if (op.Parameters is { } parameters)
-        {
-            foreach (var p in parameters)
-            {
-                if (p.Schema is null) continue;
-                var (_, field) = SchemaMapper.MapParameter(schemaMapper, p, item, ref paramIndex);
-                if (field is not null) requestFields.Add(field);
-            }
-        }
+        MapRequestParameters(op, item, schemaMapper, requestFields, ref paramIndex);
         var bodyField = MapRequestBodyField(op, schemaMapper, messages, paramIndex, methodName);
         if (bodyField is not null) requestFields.Add(bodyField);
         ApplyPayloadStreamingHint(op, item, httpMethod, streamingHint, ref kind, ref requestStreams);
@@ -245,6 +237,19 @@ internal static class OpenApiParser
             case "server": kind = RpcKind.ServerStreaming; responseStreams = true; break;
             case "bidi": kind = RpcKind.BidiStreaming; requestStreams = true; responseStreams = true; break;
             default: kind = RpcKind.Unary; break;
+        }
+    }
+
+    private static void MapRequestParameters(
+        OpenApiOperation op, OpenApiWorkItem item, SchemaMapper schemaMapper,
+        ImmutableArray<FieldModel>.Builder requestFields, ref int paramIndex)
+    {
+        if (op.Parameters is not { } parameters) return;
+        foreach (var p in parameters)
+        {
+            if (p.Schema is null) continue;
+            var (_, field) = SchemaMapper.MapParameter(schemaMapper, p, item, ref paramIndex);
+            if (field is not null) requestFields.Add(field);
         }
     }
 
