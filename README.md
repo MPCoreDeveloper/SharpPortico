@@ -3,6 +3,7 @@
 **Incremental Source Generator: OpenAPI 3.0/3.1 → gRPC + Protobuf + C# 14**
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ff69b4)](https://github.com/sponsors/MPCoreDeveloper)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue)](CHANGELOG.md)
 
 SharpPortico is a compile-time source generator that converts OpenAPI specifications (YAML or JSON) into production-quality gRPC services, protobuf messages, and modern C# 14 client/server code — zero reflection, NativeAOT-safe, fully AOT compatible. An optional **proxy mode** turns it into a gRPC↔REST gateway for legacy REST APIs.
 
@@ -141,6 +142,10 @@ dotnet run --project src/SharpPortico.Cli -- generate openapi/petstore.yaml --ou
 ## JavaPortico
 
 Looking for the Java equivalent? **[JavaPortico](https://github.com/MPCoreDeveloper/JavaPortico)** is the Java sibling of SharpPortico — the same OpenAPI → gRPC + protobuf generator and gRPC↔REST proxy pipeline for the Java/Maven ecosystem (JDK 25 LTS), with a matching mapping model, proxy runtime and configuration knobs.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 ## License
 

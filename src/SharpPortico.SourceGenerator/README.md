@@ -9,7 +9,7 @@ SharpPortico is a compile-time `IIncrementalGenerator`. Declare your OpenAPI spe
 Add it to your project as an analyzer:
 
 ```xml
-<PackageReference Include="SharpPortico.SourceGenerator" Version="1.0.0"
+<PackageReference Include="SharpPortico.SourceGenerator" Version="0.2.0"
                   ReferenceOutputAssembly="false"
                   OutputItemType="Analyzer"
                   PrivateAssets="all" />

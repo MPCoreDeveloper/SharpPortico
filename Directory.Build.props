@@ -14,7 +14,11 @@
     <!-- TFM for compiler-hosted assemblies (source generator + abstractions) -->
     <SharpPorticoGeneratorTargetFramework>netstandard2.0</SharpPorticoGeneratorTargetFramework>
     <SharpPorticoLangVersion>14.0</SharpPorticoLangVersion>
-    <SharpPorticoProductVersion>0.1.0</SharpPorticoProductVersion>
+    <SharpPorticoProductVersion>0.2.0</SharpPorticoProductVersion>
+    <!-- Centralized versioning: every packable/runnable assembly uses the product version above. -->
+    <Version>$(SharpPorticoProductVersion)</Version>
+    <AssemblyVersion>$(SharpPorticoProductVersion)</AssemblyVersion>
+    <FileVersion>$(SharpPorticoProductVersion)</FileVersion>
   </PropertyGroup>
 
   <PropertyGroup>

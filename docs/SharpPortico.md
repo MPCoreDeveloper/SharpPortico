@@ -14,7 +14,7 @@ The optional **proxy mode** turns SharpPortico into a gRPC↔REST gateway: local
 | `SharpPortico.Runtime` | AOT-safe runtime helpers incl. the proxy pipeline (`IRestClient`, `IProxyCache`, `IKeyProvider`, `IClientKeyValidator`, audit) |
 | `SharpPortico.Cli` | `dotnet sharpPortico` CLI (spec preview/validation) |
 
-> All packages carry the SharpPortico logo icon and a short NuGet readme (see `src/*/README.md`).
+> All packages carry the SharpPortico logo icon and a short NuGet readme (see `src/*/README.md`). Current version: **0.2.0** — see [CHANGELOG](../CHANGELOG.md).
 
 ---
 
