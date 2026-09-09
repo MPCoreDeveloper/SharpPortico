@@ -195,8 +195,9 @@ internal static class OpenApiParser
                 if (field is not null) requestFields.Add(field);
             }
         }
-        MapRequestBody(op, httpMethod, item, schemaMapper, messages, requestFields, paramIndex, methodName,
-            ref kind, ref requestStreams, streamingHint);
+        var bodyField = MapRequestBodyField(op, schemaMapper, messages, paramIndex, methodName);
+        if (bodyField is not null) requestFields.Add(bodyField);
+        ApplyPayloadStreamingHint(op, item, httpMethod, streamingHint, ref kind, ref requestStreams);
 
         if (requestFields.Count == 0)
         {
@@ -247,55 +248,46 @@ internal static class OpenApiParser
         }
     }
 
-    private static void MapRequestBody(
-        OpenApiOperation op, string httpMethod, OpenApiWorkItem item, SchemaMapper schemaMapper,
-        ImmutableArray<MessageModel>.Builder messages, ImmutableArray<FieldModel>.Builder requestFields,
-        int paramIndex, string methodName, ref RpcKind kind, ref bool requestStreams, string? streamingHint)
+    private static FieldModel? MapRequestBodyField(
+        OpenApiOperation op, SchemaMapper schemaMapper,
+        ImmutableArray<MessageModel>.Builder messages, int paramIndex, string methodName)
     {
         // Request body: nested message or bytes for application/octet-stream
-        var hasBody = op.RequestBody?.Content is { Count: > 0 };
-        if (!hasBody) return;
+        if (op.RequestBody?.Content is not { Count: > 0 }) return null;
 
         var mediaTypes = op.RequestBody.Content;
         if (mediaTypes.ContainsKey("application/octet-stream"))
         {
-            requestFields.Add(new FieldModel("Body", "body", paramIndex + 1, FieldKind.Bytes, BytesTypeName, BytesTypeName, false));
-        }
-        else
-        {
-            MapJsonBody(op, item, schemaMapper, messages, requestFields, paramIndex, methodName);
+            return new FieldModel("Body", "body", paramIndex + 1, FieldKind.Bytes, BytesTypeName, BytesTypeName, false);
         }
 
-        // Large payload + POST -> client-streaming option when hint absent
-        if (item.RespectStreamingHints && streamingHint is null
-            && httpMethod == "POST"
-            && EstimatePayloadSize(op.RequestBody) >= item.LargePayloadStreamingThresholdBytes)
-        {
-            kind = RpcKind.ClientStreaming;
-            requestStreams = true;
-        }
-    }
-
-    private static void MapJsonBody(
-        OpenApiOperation op, OpenApiWorkItem item, SchemaMapper schemaMapper,
-        ImmutableArray<MessageModel>.Builder messages, ImmutableArray<FieldModel>.Builder requestFields,
-        int paramIndex, string methodName)
-    {
-        var firstSchema = op.RequestBody.Content.Values.FirstOrDefault(static m => m.Schema is not null)?.Schema;
-        if (firstSchema is not { } bodySchema) return;
+        var firstSchema = mediaTypes.Values.FirstOrDefault(static m => m.Schema is not null)?.Schema;
+        if (firstSchema is not { } bodySchema) return null;
 
         var refName = SchemaMapper.ResolveSchemaName(bodySchema);
         if (refName is not null)
         {
-            requestFields.Add(new FieldModel("Body", "body", paramIndex + 1, FieldKind.Message, refName, refName, false));
-            return;
+            return new FieldModel("Body", "body", paramIndex + 1, FieldKind.Message, refName, refName, false);
         }
 
         var nested = schemaMapper.MapSchemaToMessage(methodName + "Body", bodySchema, isRequest: false, isResponse: false);
-        if (nested is not null)
+        if (nested is null) return null;
+        messages.Add(nested);
+        return new FieldModel("Body", "body", paramIndex + 1, FieldKind.Message, nested.Name, nested.Name, false);
+    }
+
+    private static void ApplyPayloadStreamingHint(
+        OpenApiOperation op, OpenApiWorkItem item, string httpMethod,
+        string? streamingHint, ref RpcKind kind, ref bool requestStreams)
+    {
+        // Large payload + POST -> client-streaming option when hint absent
+        if (item.RespectStreamingHints && streamingHint is null
+            && httpMethod == "POST"
+            && op.RequestBody is not null
+            && EstimatePayloadSize(op.RequestBody) >= item.LargePayloadStreamingThresholdBytes)
         {
-            messages.Add(nested);
-            requestFields.Add(new FieldModel("Body", "body", paramIndex + 1, FieldKind.Message, nested.Name, nested.Name, false));
+            kind = RpcKind.ClientStreaming;
+            requestStreams = true;
         }
     }
 
@@ -307,7 +299,7 @@ internal static class OpenApiParser
         var successResponse = ResolveSuccessResponse(op);
         if (successResponse?.Content is { Count: > 0 })
         {
-            MapSuccessResponse(successResponse, item, schemaMapper, messages, methodName, responseFields);
+            MapSuccessResponse(successResponse, schemaMapper, messages, methodName, responseFields);
         }
         else if (successResponse is null && item.EmitGoogleRpcStatusWrapper)
         {
@@ -322,7 +314,7 @@ internal static class OpenApiParser
     }
 
     private static void MapSuccessResponse(
-        OpenApiResponse successResponse, OpenApiWorkItem item, SchemaMapper schemaMapper,
+        OpenApiResponse successResponse, SchemaMapper schemaMapper,
         ImmutableArray<MessageModel>.Builder messages, string methodName,
         ImmutableArray<FieldModel>.Builder responseFields)
     {
