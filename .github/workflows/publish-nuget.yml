@@ -57,6 +57,9 @@ jobs:
           dotnet pack src/SharpPortico.Cli/SharpPortico.Cli.csproj \
             --configuration Release --no-restore --output ./artifacts /p:ContinuousIntegrationBuild=true
 
+      - name: Consume the packed package the way a stranger does
+        run: ./.github/scripts/consume-package.sh "$GITHUB_WORKSPACE/artifacts"
+
       - name: Publish to NuGet.org
         shell: bash
         env:

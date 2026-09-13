@@ -4,6 +4,25 @@ All notable changes to SharpPortico are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-09-13
+
+### Fixed
+- **The package now declares the dependency its own output needs.** The generated code registers the service
+  with `IServiceCollection` by default, so a consumer needs
+  `Microsoft.Extensions.DependencyInjection.Abstractions` in its compilation — and nothing declared it, because
+  the generator itself does not use it. A consumer therefore compiled only when one of its other packages
+  happened to bring it in transitively, which is exactly what made this survive: a probe that resolves floating
+  package versions passes, and a consumer pinned to the versions this repository pins fails with `CS0234`.
+
+### Added
+- **CI consumes the packed package the way a stranger does, and the publish workflow refuses to push an
+  artefact that fails that check.** This is the test that was missing rather than a bug in what was tested:
+  the tests and samples here reference the generator as a *project*, with `OutputItemType="Analyzer"`, and
+  NuGet's `analyzers/`-versus-`lib/` rule — the rule that decides whether a packaged generator runs at all —
+  only exists on the package path. That is how `1.0.0` shipped a generator that never ran while every test in
+  the repository was green. Both defects were found by consuming the package, and it is now a gate.
+
+
 ## [1.1.0] - 2026-09-13
 
 The first release that works when it is referenced. `1.0.0` was published before the generator was placed

@@ -20,6 +20,14 @@
     <PackageReference Include="Microsoft.OpenApi" PrivateAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="Microsoft.OpenApi.Readers" PrivateAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="SharpYaml" PrivateAssets="all" GeneratePathProperty="true" />
+    <!--
+      Not used by the generator, but used by what it emits: the generated code registers the service with
+      IServiceCollection by default (EmitDependencyInjection defaults to true), so a consumer cannot compile
+      that code unless these types are in its compilation. A dependency of the output is a dependency of the
+      package - and this reference's absence is why consumers compiled only when something else happened to
+      bring Microsoft.Extensions.DependencyInjection.Abstractions in transitively.
+    -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>
