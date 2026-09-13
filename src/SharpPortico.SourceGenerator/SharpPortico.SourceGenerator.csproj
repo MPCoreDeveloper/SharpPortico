@@ -35,6 +35,17 @@
   </ItemGroup>
 
   <!--
+    The package's own MSBuild props: it declares SharpPorticoServiceName / SharpPorticoNamespace and
+    the per-file SharpporticoServiceName / SharpporticoNamespace metadata as compiler-visible, which
+    is the only way a source generator can read a project's configuration. NuGet imports a build/
+    folder file named after the package automatically.
+  -->
+  <ItemGroup>
+    <None Include="build\SharpPortico.SourceGenerator.props" Pack="true" PackagePath="build\" Visible="true" />
+  </ItemGroup>
+
+
+  <!--
     Ship the generator itself under analyzers/dotnet/cs as well as lib/netstandard2.0.
 
     A package's lib assets are never handed to the compiler as analyzers - not even with

@@ -11,7 +11,7 @@ generator runs on every build:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="SharpPortico.SourceGenerator" Version="0.4.0-RC.1"
+  <PackageReference Include="SharpPortico.SourceGenerator" Version="0.4.0-RC.2"
                     PrivateAssets="all" />
   <AdditionalFiles Include="openapi/**/*.yaml" />
 </ItemGroup>

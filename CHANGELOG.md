@@ -4,6 +4,22 @@ All notable changes to SharpPortico are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0-RC.2] - 2026-09-13
+
+### Added
+- **`SharpPorticoServiceName` and `SharpPorticoNamespace` as project-wide MSBuild properties**, next to the
+  per-file `SharpporticoServiceName` / `SharpporticoNamespace` metadata.
+
+### Fixed
+- **The service name and namespace can actually be configured now.** MSBuild hands a property or an item
+  metadata to the compiler — and therefore to a source generator — only when it is declared compiler-visible,
+  so neither the properties nor the per-file metadata ever reached the generator: a service was named after its
+  specification's file name whatever the project said. The package now ships
+  `build/SharpPortico.SourceGenerator.props`, which declares all four. 0.4.0-RC.1 added the property route on
+  the generator side but shipped without the declaration, so nothing read it — the property would have
+  appeared to work and done nothing.
+
+
 ## [0.4.0-RC.1] - 2026-09-13
 
 ### Added
