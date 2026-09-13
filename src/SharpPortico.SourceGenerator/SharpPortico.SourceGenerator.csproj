@@ -41,7 +41,7 @@
     folder file named after the package automatically.
   -->
   <ItemGroup>
-    <None Include="build\SharpPortico.SourceGenerator.props" Pack="true" PackagePath="build\" Visible="true" />
+    <None Include="build/SharpPortico.SourceGenerator.props" Pack="true" PackagePath="build/" Visible="true" />
   </ItemGroup>
 
 

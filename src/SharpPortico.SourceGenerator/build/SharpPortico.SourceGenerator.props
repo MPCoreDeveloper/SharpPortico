@@ -1,0 +1,30 @@
+<Project>
+
+  <!--
+    SharpPortico - OpenAPI -> gRPC.
+
+    MSBuild hands a property or an item metadata to the compiler, and therefore to a source generator,
+    only when it is declared compiler-visible. These four declarations are what make the generator able
+    to read its configuration:
+
+      <PropertyGroup>
+        <SharpPorticoServiceName>UserService</SharpPorticoServiceName>
+        <SharpPorticoNamespace>MyApp.Generated</SharpPorticoNamespace>
+      </PropertyGroup>
+
+      <AdditionalFiles Include="openapi/users.yaml"
+                       SharpporticoServiceName="UserService"
+                       SharpporticoNamespace="MyApp.Generated" />
+
+    Without them the generator falls back to the specification's file name, which is what a service
+    used to be named whether or not anything was configured.
+  -->
+
+  <ItemGroup>
+    <CompilerVisibleProperty Include="SharpPorticoServiceName" />
+    <CompilerVisibleProperty Include="SharpPorticoNamespace" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SharpporticoServiceName" />
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SharpporticoNamespace" />
+  </ItemGroup>
+
+</Project>

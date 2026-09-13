@@ -81,3 +81,8 @@ lerna-debug.log*
 *.rsuser
 *.local
 *.publish
+
+# NuGet convention puts a package's MSBuild props in a build/ folder, so this one directory is a
+# package input rather than build output - without the negation the file never ships.
+!src/SharpPortico.SourceGenerator/build/
+!src/SharpPortico.SourceGenerator/build/**
