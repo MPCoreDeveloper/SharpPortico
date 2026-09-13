@@ -14,7 +14,7 @@ SharpPortico is a compile-time source generator that converts OpenAPI specificat
 - 🚀 **`IIncrementalGenerator`** — fast incremental pipeline, safe on 10k-line specs
 - 📦 **C# 14** output — primary constructors, collection expressions, required members, file-scoped namespaces
 - 🧱 **NativeAOT / reflection-free** — hand-written `IMessage<T>` implementations, no `Activator`
-- 🌐 **Both server and client** — `ServiceBase` (server) + modern typed client (`GrpcChannel`)
+- 🌐 **Both server and client, and both hosts** — the generated `ServiceBase` is served by `Grpc.Core` or by ASP.NET Core's `MapGrpcService`, alongside a modern typed client (`GrpcChannel`)
 - 🔁 **Proxy mode** — generated `{Service}Proxy : ServiceBase` forwards gRPC → legacy REST (X-Api-Key outbound, response cache with per-call bypass, ULID client keys, audit logging)
 - 🔐 **Auth mapped** — Bearer / API-Key / OAuth2 metadata helpers and interceptors
 - 🧠 **Smart mapping** — `$ref`, `allOf`, `oneOf`/`anyOf`, arrays → `repeated`, enums, pagination detection, streaming hints (`x-grpc-streaming`), octet-stream → `bytes`
@@ -86,6 +86,32 @@ var client = UserServiceClient.Create(channel);
 
 var user = await client.GetUserAsync(42);
 ```
+
+## Hosting the generated service
+
+One service base, two hosts.
+
+**ASP.NET Core (grpc-dotnet).** The base carries `[BindServiceMethod(typeof(PetService), "BindService")]` and the
+contract carries the `BindService(ServiceBinderBase, PetServiceBase)` overload that grpc-dotnet's binder looks
+for, so `MapGrpcService` finds the service:
+
+```csharp
+builder.Services.AddGrpc();
+builder.Services.AddSingleton<PetServiceImpl>();
+
+var app = builder.Build();
+app.MapGrpcService<PetServiceImpl>();
+```
+
+**Grpc.Core.** Unchanged: `PetService.BindService(new PetServiceImpl())` returns the `ServerServiceDefinition`
+that `Server` takes.
+
+An implementation overrides `ListPetsAsync(request, context)` either way. grpc-dotnet binds a handler by the
+RPC's own name, so the base also declares `ListPets(request, context)`, which forwards to `ListPetsAsync`.
+
+> **NativeAOT:** the messages, the contract and the client are reflection-free, but grpc-dotnet's *server* binds
+> by reflection — it looks up the binder method and each handler at startup — so an ASP.NET Core gRPC server is
+> not an AOT target. That is a property of grpc-dotnet rather than of the generated code.
 
 ## Proxy mode (gRPC clients → legacy REST)
 

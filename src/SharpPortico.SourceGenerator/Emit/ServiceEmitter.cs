@@ -87,6 +87,31 @@ internal static class ServiceEmitter
             }
             w.Line("    .Build();");
         });
+        w.Line();
+
+        // The same binding in the shape grpc-dotnet's binder asks for, which is what makes the service
+        // hostable by MapGrpcService on ASP.NET Core and not only by the Grpc.Core server. The base
+        // class carries [BindServiceMethod] pointing here; the service instance is always null on that
+        // path, because grpc-dotnet resolves the implementation per call and binds by method name.
+        w.Block($"public static void BindService(global::Grpc.Core.ServiceBinderBase serviceBinder, {svc.Name}Base serviceImpl)", () =>
+        {
+            foreach (var rpc in svc.RpcMethods)
+            {
+                var delegateType = rpc.Kind switch
+                {
+                    RpcKind.ServerStreaming => "ServerStreamingServerMethod",
+                    RpcKind.ClientStreaming => "ClientStreamingServerMethod",
+                    RpcKind.BidiStreaming => "DuplexStreamingServerMethod",
+                    _ => "UnaryServerMethod"
+                };
+
+                var handler = rpc.Kind == RpcKind.Unary ? $"{rpc.Name}Async" : rpc.Name;
+
+                w.Line($"serviceBinder.AddMethod(Method_{rpc.Name}, serviceImpl == null");
+                w.Line($"    ? null");
+                w.Line($"    : new global::Grpc.Core.{delegateType}<{rpc.RequestType}, {rpc.ResponseType}>(serviceImpl.{handler}));");
+            }
+        });
     }
 
     private static void EmitNestedClient(CodeWriter w, ServiceModel svc)
@@ -109,7 +134,10 @@ internal static class ServiceEmitter
     private static void EmitServerBase(CodeWriter w, ServiceModel svc)
     {
         // ---- Server base ----
+        // The attribute is how grpc-dotnet's binder finds the binder method: it walks base types looking
+        // for [BindServiceMethod] and then takes the named method from the type it points at.
         w.Line(GeneratedCodeAttribute);
+        w.Line($"[global::Grpc.Core.BindServiceMethod(typeof({svc.Name}), \"BindService\")]");
         w.Block($"public abstract partial class {svc.Name}Base", () =>
         {
             foreach (var rpc in svc.RpcMethods)
@@ -120,6 +148,11 @@ internal static class ServiceEmitter
                         w.Line($"public virtual global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}Async({rpc.RequestType} request, global::Grpc.Core.ServerCallContext context)");
                         w.Line("    => throw new global::Grpc.Core.RpcException(new global::Grpc.Core.Status(global::Grpc.Core.StatusCode.Unimplemented, \"\"));");
                         w.Line($"public global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}Handler({rpc.RequestType} request, global::Grpc.Core.ServerCallContext context)");
+                        w.Line($"    => {rpc.Name}Async(request, context);");
+                        // grpc-dotnet binds a handler by the RPC's own name and signature, so the base
+                        // carries one under that name too. It forwards to Async, which stays the method an
+                        // implementation overrides, and the Grpc.Core path keeps using the Handler shim.
+                        w.Line($"public virtual global::System.Threading.Tasks.Task<{rpc.ResponseType}> {rpc.Name}({rpc.RequestType} request, global::Grpc.Core.ServerCallContext context)");
                         w.Line($"    => {rpc.Name}Async(request, context);");
                         break;
                     case RpcKind.ServerStreaming:

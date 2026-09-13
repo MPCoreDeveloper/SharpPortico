@@ -40,7 +40,7 @@ public class LargeSpecPerformanceTests
         sb.AppendLine("paths:");
         for (var i = 0; i < operations; i++)
         {
-            sb.AppendLine($"  /resource{i}:");
+            sb.AppendLine($"  /resource{i}/{{id}}:");
             sb.AppendLine($"    get:");
             sb.AppendLine($"      operationId: getResource{i}");
             sb.AppendLine($"      parameters:");

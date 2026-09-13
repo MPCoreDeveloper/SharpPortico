@@ -34,6 +34,21 @@
     <None Include="$(OutputPath)\SharpPortico.Abstractions.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('$(OutputPath)\SharpPortico.Abstractions.dll')" />
   </ItemGroup>
 
+  <!--
+    Ship the generator itself under analyzers/dotnet/cs as well as lib/netstandard2.0.
+
+    A package's lib assets are never handed to the compiler as analyzers - not even with
+    OutputItemType="Analyzer" - so with only the lib copy a plain
+    <PackageReference Include="SharpPortico.SourceGenerator" /> silently generates nothing. The
+    analyzers/ copy is the one NuGet adds by itself. The lib copy stays for consumers that add the
+    generator by hand with <Analyzer Include=".../lib/netstandard2.0/SharpPortico.SourceGenerator.dll" />;
+    a project uses one route or the other, never both, or the generator runs twice.
+  -->
+  <ItemGroup>
+    <None Include="$(OutputPath)SharpPortico.SourceGenerator.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="Exists('$(OutputPath)\SharpPortico.SourceGenerator.dll')" />
+  </ItemGroup>
+
+
   <!-- Copy OpenAPI deps next to the analyzer so project-reference usage works too -->
   <Target Name="CopyOpenApiDependencies" AfterTargets="Build">
     <Copy SourceFiles="$(PkgMicrosoft_OpenApi)\lib\netstandard2.0\Microsoft.OpenApi.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />

@@ -4,6 +4,7 @@
     <TargetFramework>$(SharpPorticoNetTargetFramework)</TargetFramework>
     <RootNamespace>SharpPortico.Samples.GrpcServerExample</RootNamespace>
     <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <SharpPorticoGeneratorOutDir>$(MSBuildThisFileDirectory)..\..\src\SharpPortico.SourceGenerator\bin\$(Configuration)\$(SharpPorticoGeneratorTargetFramework)\</SharpPorticoGeneratorOutDir>
   </PropertyGroup>

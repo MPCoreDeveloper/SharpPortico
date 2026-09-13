@@ -8,10 +8,11 @@ namespace SharpPortico;
 /// at compile time.
 /// </summary>
 /// <remarks>
-/// The file is resolved relative to the project directory. Multiple attributes may be
-/// added to generate multiple services. The attribute is an alternative to declaring
-/// the file in the project's AdditionalFiles items; when both are present,
-/// AdditionalFiles wins and this attribute is used to customize generation.
+/// The specification has to be declared in the project as an <c>AdditionalFiles</c> item - that is where the
+/// generator reads the document from - and this attribute configures how it is mapped. With an
+/// <c>AdditionalFiles</c> item present, the item drives generation and this attribute customizes it; either way
+/// the file path here is resolved against the project directory. Multiple attributes may be added for multiple
+/// services.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true, Inherited = false)]
 public sealed class OpenApiToGrpcAttribute : Attribute

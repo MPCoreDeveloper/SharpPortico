@@ -34,7 +34,40 @@ internal static class GeneratorTestDriver
         string? namespaceName = null,
         CancellationToken ct = default)
     {
-        var item = new OpenApiWorkItem(
+        var item = Item(specContent, serviceName, namespaceName);
+        var result = OpenApiParser.ParseAndMap(item, ImmutableArray<AdditionalFileRequest>.Empty, ct);
+
+        if (!result.IsSuccess || result.Model is null)
+        {
+            throw new InvalidOperationException(
+                "Mapping failed: " + string.Join(" | ", result.Diagnostics.Select(d => d.ToString())));
+        }
+
+        return new RunResult(DiagnosticsOf(result), Emit(result.Model, item));
+    }
+
+    /// <summary>
+    /// Runs the same pipeline without throwing, so a specification that has to be refused can be
+    /// asserted on: the diagnostics say why, and no sources are produced.
+    /// </summary>
+    public static RunResult TryRun(
+        string specContent,
+        string? serviceName = null,
+        string? namespaceName = null,
+        CancellationToken ct = default)
+    {
+        var item = Item(specContent, serviceName, namespaceName);
+        var result = OpenApiParser.ParseAndMap(item, ImmutableArray<AdditionalFileRequest>.Empty, ct);
+
+        return new RunResult(
+            DiagnosticsOf(result),
+            result.IsSuccess && result.Model is not null
+                ? Emit(result.Model, item)
+                : ImmutableDictionary<string, string>.Empty);
+    }
+
+    private static OpenApiWorkItem Item(string specContent, string? serviceName, string? namespaceName)
+        => new(
             FilePath: "openapi/petstore.yaml",
             HintName: "petstore",
             ServiceName: serviceName,
@@ -57,17 +90,13 @@ internal static class GeneratorTestDriver
             ServiceNameSuffix: "Service",
             LargePayloadStreamingThresholdBytes: 1_000_000);
 
-        var result = OpenApiParser.ParseAndMap(item, ImmutableArray<AdditionalFileRequest>.Empty, ct);
-
-        if (!result.IsSuccess || result.Model is null)
-        {
-            throw new InvalidOperationException(
-                "Mapping failed: " + string.Join(" | ", result.Diagnostics.Select(d => d.ToString())));
-        }
-
-        var sources = CodeEmitter.Emit(result.Model!, item)
+    private static IReadOnlyDictionary<string, string> Emit(GrpcModel model, OpenApiWorkItem item)
+        => CodeEmitter.Emit(model, item)
             .ToImmutableDictionary(static pair => pair.HintName, static pair => pair.Text, StringComparer.Ordinal);
 
-        return new RunResult(ImmutableArray<string>.Empty, sources);
-    }
+    /// <summary>The parse diagnostics as "ID args" text, so a test can assert on an identifier.</summary>
+    private static ImmutableArray<string> DiagnosticsOf(ParseResult result)
+        => result.Diagnostics
+            .Select(static d => d.Descriptor.Id + " " + string.Join(" ", d.Arguments.Select(static a => a?.ToString())))
+            .ToImmutableArray();
 }

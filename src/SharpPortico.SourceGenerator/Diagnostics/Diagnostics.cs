@@ -90,4 +90,45 @@ internal static class Diagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true);
+
+    // ---- Parse, continued (1000) ----
+
+    /// <summary>SP1002: an OpenAPI 3.1 document was parsed as 3.0.</summary>
+    public static DiagnosticDescriptor OpenApi31ParsedAs30 { get; } = new(
+        id: "SP1002",
+        title: "OpenAPI 3.1 parsed as 3.0",
+        messageFormat: "SharpPortico parsed '{0}' as OpenAPI 3.0: the bundled parser (Microsoft.OpenApi 1.6.x) does "
+            + "not read a 3.1 document. Everything 3.0 and 3.1 share maps normally; constructs only 3.1 adds - a "
+            + "type array, prefixItems, webhooks, jsonSchemaDialect, $defs - are not mapped",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "The declared version is rewritten to 3.0 before parsing, so a 3.0-compatible 3.1 document maps as it stands.");
+
+    // ---- Mapping, continued (2000) ----
+
+    /// <summary>SP2005: one message name would be emitted twice, which cannot compile.</summary>
+    public static DiagnosticDescriptor DuplicateMessageName { get; } = new(
+        id: "SP2005",
+        title: "Message name produced twice",
+        messageFormat: "SharpPortico cannot map '{0}': the message name '{1}' is produced twice - an operation "
+            + "derives its messages as '{{OperationId}}Request' and '{{OperationId}}Response', so a component "
+            + "schema of that name collides. Rename one of the two",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Two different messages with one name would land in one file, which does not compile.");
+
+    /// <summary>SP2006: a property would generate a member named like its enclosing type, which cannot compile.</summary>
+    public static DiagnosticDescriptor MemberNameEqualsType { get; } = new(
+        id: "SP2006",
+        title: "Property name equals its schema name",
+        messageFormat: "SharpPortico cannot map '{0}': property '{1}' of schema '{2}' would generate a member with "
+            + "the same name as its enclosing type, which C# forbids (CS0542). Rename the property or the schema",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A generated member may not share its name with the type that contains it.");
+
+
 }

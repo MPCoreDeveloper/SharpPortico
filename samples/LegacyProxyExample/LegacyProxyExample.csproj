@@ -4,6 +4,7 @@
     <TargetFramework>$(SharpPorticoNetTargetFramework)</TargetFramework>
     <RootNamespace>SharpPortico.Samples.LegacyProxyExample</RootNamespace>
     <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <SharpPorticoGeneratorOutDir>$(MSBuildThisFileDirectory)..\..\src\SharpPortico.SourceGenerator\bin\$(Configuration)\$(SharpPorticoGeneratorTargetFramework)\</SharpPorticoGeneratorOutDir>

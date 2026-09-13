@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.OpenApi.Models;
 using Microsoft.OpenApi.Readers;
@@ -33,7 +34,8 @@ internal static class OpenApiParser
                 new object[] { item.FilePath, "file not found in AdditionalFiles" }));
         }
 
-        // 2) Parse. OpenApiStringReader parses OpenAPI 3.0/3.1 documents only.
+        // 2) Parse. OpenApiStringReader reads OpenAPI 3.0 documents; a 3.1 document is declared as 3.0
+        //    first, with a diagnostic that says so (see NormalizeSpecVersion).
         var (document, parseFailure) = TryParseDocument(content, item, diags);
         if (parseFailure is not null)
         {
@@ -61,6 +63,14 @@ internal static class OpenApiParser
 
         // 5) Map paths -> RPCs + request/response messages
         var rpcs = MapPathOperations(document, item, schemaMapper, allMessages, ct);
+
+        // 5b) A contract that cannot compile is refused here, with the reason, rather than emitted and
+        //     left for the consumer to diagnose from generated code. gRPC keeps one namespace per
+        //     package, so two messages with one name cannot both exist.
+        if (FindContractConflict(allMessages, item) is { } conflict)
+        {
+            return ParseResult.Failure(item, conflict);
+        }
 
         // 6) Auth schemes
         var authSchemes = (item.GenerateAuthMetadataHelpers || item.GenerateAuthInterceptors)
@@ -96,7 +106,7 @@ internal static class OpenApiParser
         try
         {
             var reader = new OpenApiStringReader();
-            var document = reader.Read(content, out var readDiagnostic);
+            var document = reader.Read(NormalizeSpecVersion(content, item, diags), out var readDiagnostic);
             if (readDiagnostic is not null && readDiagnostic.Errors.Count > 0)
             {
                 var first = readDiagnostic.Errors[0];
@@ -425,6 +435,75 @@ internal static class OpenApiParser
 
     private static string NormalizePath(string p)
         => p.Replace('\\', '/').TrimStart('.', '/');
+
+    // Microsoft.OpenApi 1.6.x - the parser this generator ships - refuses an OpenAPI 3.1 document
+    // outright ("OpenAPI specification version '3.1.0' is not supported"), although 3.0 and 3.1 share
+    // nearly everything that maps to gRPC. Declaring 3.0 before parsing makes a 3.0-compatible 3.1
+    // document map rather than be rejected, and the warning says what that costs.
+    private static readonly Regex OpenApi31Yaml = new(
+        @"(?m)^(?<head>\s*openapi\s*:\s*[""']?)3\.1(?:\.\d+)?(?<tail>[""']?\s*)$",
+        RegexOptions.Compiled);
+
+    private static readonly Regex OpenApi31Json = new(
+        @"(?m)(?<head>""openapi""\s*:\s*"")3\.1(?:\.\d+)?(?<tail>"")",
+        RegexOptions.Compiled);
+
+    private static string NormalizeSpecVersion(
+        string content, OpenApiWorkItem item, ImmutableArray<GeneratorDiagnostic>.Builder diags)
+    {
+        var match = OpenApi31Yaml.Match(content);
+        if (!match.Success)
+        {
+            match = OpenApi31Json.Match(content);
+        }
+
+        if (!match.Success)
+        {
+            return content;
+        }
+
+        diags.Add(new GeneratorDiagnostic(
+            Diagnostics.Diagnostics.OpenApi31ParsedAs30,
+            new object[] { item.FilePath }));
+
+        return content.Substring(0, match.Index)
+            + match.Groups["head"].Value
+            + "3.0.3"
+            + match.Groups["tail"].Value
+            + content.Substring(match.Index + match.Length);
+    }
+
+    /// <summary>
+    /// Finds a contract that cannot compile: one message name produced twice, or a property that would
+    /// generate a member named like its enclosing type.
+    /// </summary>
+    private static GeneratorDiagnostic? FindContractConflict(
+        ImmutableArray<MessageModel>.Builder messages, OpenApiWorkItem item)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var message in messages)
+        {
+            if (!seen.Add(message.Name))
+            {
+                return new GeneratorDiagnostic(
+                    Diagnostics.Diagnostics.DuplicateMessageName,
+                    new object[] { item.FilePath, message.Name });
+            }
+
+            foreach (var field in message.Fields)
+            {
+                if (string.Equals(field.Name, message.Name, StringComparison.Ordinal))
+                {
+                    return new GeneratorDiagnostic(
+                        Diagnostics.Diagnostics.MemberNameEqualsType,
+                        new object[] { item.FilePath, field.Name, message.Name });
+                }
+            }
+        }
+
+        return null;
+    }
 
     private static string DeriveServiceName(OpenApiWorkItem item, OpenApiDocument document)
     {
