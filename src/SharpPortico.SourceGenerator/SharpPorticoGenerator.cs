@@ -143,11 +143,24 @@ public sealed class SharpPorticoGenerator : IIncrementalGenerator
             || p.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Reads a per-file AdditionalFiles metadata value, when the SDK surfaces it.</summary>
+    /// <summary>
+    /// Reads a per-file AdditionalFiles metadata value, when the SDK surfaces one.
+    /// </summary>
+    /// <remarks>
+    /// An unset compiler-visible metadata entry is present with an empty value rather than absent, so
+    /// whitespace counts as missing - otherwise it would shadow the project-wide property and the
+    /// fallback would never be read.
+    /// </remarks>
     private static string? ReadOption(AnalyzerConfigOptionsProvider options, AdditionalText file, string name)
-        => options.GetOptions(file).TryGetValue($"build_metadata.AdditionalFiles.{name}", out var value) ? value : null;
+        => options.GetOptions(file).TryGetValue($"build_metadata.AdditionalFiles.{name}", out var value)
+            && !string.IsNullOrWhiteSpace(value)
+                ? value
+                : null;
 
     /// <summary>Reads a project-wide MSBuild property, which is how a spec is named without the metadata route.</summary>
     private static string? ReadGlobalOption(AnalyzerConfigOptionsProvider options, string name)
-        => options.GlobalOptions.TryGetValue($"build_property.{name}", out var value) ? value : null;
+        => options.GlobalOptions.TryGetValue($"build_property.{name}", out var value)
+            && !string.IsNullOrWhiteSpace(value)
+                ? value
+                : null;
 }

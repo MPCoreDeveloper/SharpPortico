@@ -4,6 +4,17 @@ All notable changes to SharpPortico are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0-RC.3] - 2026-09-13
+
+### Fixed
+- **An unset configuration value no longer shadows a set one.** Declaring a metadata name compiler-visible makes
+  the compiler emit an entry for it on every item — with an *empty* value when the item does not set it — so the
+  per-file lookup succeeded with `""` and the project-wide `SharpPorticoServiceName` / `SharpPorticoNamespace` were
+  never read. A service was then named after an empty string: the generated file was `.g.cs`, its namespace the
+  service's own name, and nothing the project configured had any effect. Whitespace now counts as missing on both
+  routes.
+
+
 ## [0.4.0-RC.2] - 2026-09-13
 
 ### Added
