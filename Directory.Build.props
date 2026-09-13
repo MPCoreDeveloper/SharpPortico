@@ -3,22 +3,25 @@
     SharpPortico centralized build properties.
 
     .NET forward-compat strategy:
-      * Today:    TFM = net10.0, LangVersion = 14.0 (stable C# 14)
-      * Next wave (net11.0 / C# 15): change the two SharpPortico* properties below
-        and LangVersion. Everything else follows centrally.
+      * net11.0 / C# 15 wave (this RC): product TFM = net11.0, LangVersion = preview.
+      * The compiler-hosted assemblies (source generator + abstractions) stay on
+        netstandard2.0 - Roslyn loads analyzers on that TFM, so it is a hard
+        requirement and not a downgrade.
   -->
 
   <PropertyGroup>
     <!-- Product TFM for runnable assemblies (runtime, CLI, samples, tests) -->
-    <SharpPorticoNetTargetFramework>net10.0</SharpPorticoNetTargetFramework>
+    <SharpPorticoNetTargetFramework>net11.0</SharpPorticoNetTargetFramework>
     <!-- TFM for compiler-hosted assemblies (source generator + abstractions) -->
     <SharpPorticoGeneratorTargetFramework>netstandard2.0</SharpPorticoGeneratorTargetFramework>
-    <SharpPorticoLangVersion>14.0</SharpPorticoLangVersion>
-    <SharpPorticoProductVersion>0.2.0</SharpPorticoProductVersion>
+    <SharpPorticoLangVersion>preview</SharpPorticoLangVersion>
+    <SharpPorticoProductVersion>0.3.0-RC.1</SharpPorticoProductVersion>
+    <!-- AssemblyVersion/FileVersion must be numeric; the package version may carry a prerelease suffix. -->
+    <SharpPorticoAssemblyVersion>0.3.0.0</SharpPorticoAssemblyVersion>
     <!-- Centralized versioning: every packable/runnable assembly uses the product version above. -->
     <Version>$(SharpPorticoProductVersion)</Version>
-    <AssemblyVersion>$(SharpPorticoProductVersion)</AssemblyVersion>
-    <FileVersion>$(SharpPorticoProductVersion)</FileVersion>
+    <AssemblyVersion>$(SharpPorticoAssemblyVersion)</AssemblyVersion>
+    <FileVersion>$(SharpPorticoAssemblyVersion)</FileVersion>
   </PropertyGroup>
 
   <PropertyGroup>
