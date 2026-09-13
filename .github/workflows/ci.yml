@@ -45,4 +45,4 @@ jobs:
       # The tests and samples consume the generator as a project. This consumes the *package*, which is the
       # only path where NuGet's analyzers/-versus-lib rule applies - and the reason 1.0.0 shipped inert.
       - name: Consume the packed package the way a stranger does
-        run: ./.github/scripts/consume-package.sh "$GITHUB_WORKSPACE/artifacts"
+        run: bash ./.github/scripts/consume-package.sh "$GITHUB_WORKSPACE/artifacts"
