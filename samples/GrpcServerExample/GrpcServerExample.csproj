@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>$(SharpPorticoNetTargetFramework)</TargetFramework>
+    <!-- The sample consumes the generator as a package would, so it is built on both runtimes. -->
+    <TargetFrameworks>$(SharpPorticoNetTargetFrameworks)</TargetFrameworks>
     <RootNamespace>SharpPortico.Samples.GrpcServerExample</RootNamespace>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>

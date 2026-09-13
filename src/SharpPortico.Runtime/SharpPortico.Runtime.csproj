@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>$(SharpPorticoNetTargetFramework)</TargetFramework>
+    <!-- Both supported runtimes: a net10 application can reference this package as well as a net11 one. -->
+    <TargetFrameworks>$(SharpPorticoNetTargetFrameworks)</TargetFrameworks>
     <RootNamespace>SharpPortico</RootNamespace>
     <IsPackable>true</IsPackable>
     <Description>Tiny AOT-safe runtime helpers used by SharpPortico-generated gRPC code.</Description>

@@ -4,6 +4,50 @@ All notable changes to SharpPortico are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-09-13
+
+The first release that works when it is referenced. `1.0.0` was published before the generator was placed
+where the compiler looks for analyzers, so a `PackageReference` on it generated nothing; the fix went out as
+`0.4.0-RC.1`, and a prerelease sorts *below* `1.0.0`, so no stable version contained it. This release is
+that work as a stable one, on both supported runtimes, from `main`.
+
+### Added
+- **.NET 10 and .NET 11 from one package.** The generator is `netstandard2.0` — the TFM Roslyn loads
+  analyzers on, so it runs in the compiler whatever the consumer targets — and it now ships with the
+  helpers (`SharpPortico.Runtime`, one `lib/` folder per runtime) and the tool (`SharpPortico.Cli`, one
+  `tools/` folder per runtime). The test suite runs on both frameworks, and both samples are built on both.
+- **The generated contract is compiled in the test suite**, not only inspected. A text assertion cannot
+  catch a contract that does not compile, which is a generator's most damaging failure: the consumer
+  discovers it inside a generated file. The emitted sources are compiled against the framework and the
+  packages they name — at the latest language version and at C# 14, which is what a .NET 10 consumer has.
+- **ASP.NET Core hosting.** The generated server base carries
+  `[BindServiceMethod(typeof({Service}), "BindService")]` and the contract a
+  `BindService(ServiceBinderBase, {Service}Base)` overload, which is the shape grpc-dotnet's
+  `BinderServiceModelProvider` looks for, so `MapGrpcService<T>` serves a SharpPortico contract next to
+  another service. The `Grpc.Core` binder shape is unchanged.
+- **`SharpPorticoServiceName` and `SharpPorticoNamespace` as MSBuild properties**, next to the per-file
+  `SharpporticoServiceName` / `SharpporticoNamespace` metadata.
+- **`SP2005` and `SP2006`** refuse a contract that cannot compile; **`SP1002`** reports an OpenAPI 3.1
+  document being parsed as 3.0.
+
+### Fixed
+- **The generator is shipped where the compiler looks for it.** A `lib/` asset is never handed to the
+  compiler as an analyzer, so the package generated nothing at all for a plain `PackageReference`; the
+  generator now also ships in `analyzers/dotnet/cs`.
+- **The configuration values reach the generator.** MSBuild surfaces a property or metadata to a generator
+  only when it is declared compiler-visible, so the package now ships
+  `build/SharpPortico.SourceGenerator.props`, which declares all four.
+- **An unset configuration value no longer shadows a set one.** A declared metadata name is emitted on
+  every item — empty when the item does not set it — so the per-file lookup succeeded with `""` and the
+  project-wide properties were never read. Whitespace now counts as missing on both routes.
+- **A message with two enum properties did not compile.** The deserialiser declares a local per enum field,
+  and each `case` body was emitted without its own scope, so two enums in one message emitted the same
+  local twice into one `switch` scope — `CS0128` in generated source, for a specification that maps
+  cleanly and reports no diagnostics. Each case body now has its own scope, which is also what protoc
+  emits.
+- `Microsoft.Extensions.Caching.Memory` 8.0.0 → 8.0.1 (CVE-2024-43483).
+
+
 ## [0.4.0-RC.4] - 2026-09-13
 
 ### Fixed

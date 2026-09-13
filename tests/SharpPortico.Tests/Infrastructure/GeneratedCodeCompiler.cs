@@ -19,13 +19,17 @@ namespace SharpPortico.Tests.Infrastructure;
 internal static class GeneratedCodeCompiler
 {
     /// <summary>Compiles sources and returns the compiler errors, empty when they compile.</summary>
-    public static ImmutableArray<string> Errors(IEnumerable<string> sources)
+    /// <param name="sources">The generated sources.</param>
+    /// <param name="languageVersion">The C# version to compile them as.</param>
+    public static ImmutableArray<string> Errors(
+        IEnumerable<string> sources,
+        LanguageVersion languageVersion = LanguageVersion.Latest)
     {
         var compilation = CSharpCompilation.Create(
             "SharpPortico.Generated.Under.Test",
-            sources.Select(static source => CSharpSyntaxTree.ParseText(
+            sources.Select(source => CSharpSyntaxTree.ParseText(
                 source,
-                new CSharpParseOptions(LanguageVersion.Latest))),
+                new CSharpParseOptions(languageVersion))),
             References(),
             new CSharpCompilationOptions(
                 OutputKind.DynamicallyLinkedLibrary,

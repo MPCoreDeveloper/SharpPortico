@@ -3,21 +3,26 @@
     SharpPortico centralized build properties.
 
     .NET forward-compat strategy:
-      * net11.0 / C# 15 wave (this RC): product TFM = net11.0, LangVersion = preview.
-      * The compiler-hosted assemblies (source generator + abstractions) stay on
-        netstandard2.0 - Roslyn loads analyzers on that TFM, so it is a hard
-        requirement and not a downgrade.
+      * The product ships on net10.0 AND net11.0 from one branch. What ships, and what is tested, is
+        SharpPorticoNetTargetFrameworks; the source generator stays on netstandard2.0 because Roslyn loads
+        analyzers on that TFM - it is a hard requirement, not a downgrade, and it is also what makes the
+        package usable from any consumer TFM.
+      * LangVersion is preview for this repository's own code. Multi-targeting is what keeps that honest:
+        code that needs a .NET 11 API does not compile against net10, so the second target framework is a
+        check rather than a claim.
   -->
 
   <PropertyGroup>
-    <!-- Product TFM for runnable assemblies (runtime, CLI, samples, tests) -->
+    <!-- The TFM a project uses when it targets one runtime (samples, and the default). -->
     <SharpPorticoNetTargetFramework>net11.0</SharpPorticoNetTargetFramework>
+    <!-- The runtimes the product ships on, and every framework the tests run against. -->
+    <SharpPorticoNetTargetFrameworks>net10.0;net11.0</SharpPorticoNetTargetFrameworks>
     <!-- TFM for compiler-hosted assemblies (source generator + abstractions) -->
     <SharpPorticoGeneratorTargetFramework>netstandard2.0</SharpPorticoGeneratorTargetFramework>
     <SharpPorticoLangVersion>preview</SharpPorticoLangVersion>
-    <SharpPorticoProductVersion>0.4.0-RC.4</SharpPorticoProductVersion>
+    <SharpPorticoProductVersion>1.1.0</SharpPorticoProductVersion>
     <!-- AssemblyVersion/FileVersion must be numeric; the package version may carry a prerelease suffix. -->
-    <SharpPorticoAssemblyVersion>0.4.0.0</SharpPorticoAssemblyVersion>
+    <SharpPorticoAssemblyVersion>1.1.0.0</SharpPorticoAssemblyVersion>
     <!-- Centralized versioning: every packable/runnable assembly uses the product version above. -->
     <Version>$(SharpPorticoProductVersion)</Version>
     <AssemblyVersion>$(SharpPorticoAssemblyVersion)</AssemblyVersion>

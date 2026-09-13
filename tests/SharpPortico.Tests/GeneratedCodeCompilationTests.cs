@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Microsoft.CodeAnalysis.CSharp;
 using SharpPortico.Tests.Infrastructure;
 using Xunit;
 
@@ -31,6 +32,21 @@ public class GeneratedCodeCompilationTests
 
         Assert.Empty(result.Diagnostics);
         Assert.Empty(GeneratedCodeCompiler.Errors(result.Sources.Values));
+    }
+
+    [Fact]
+    public void The_Contract_Also_Compiles_As_CSharp_14_Because_That_Is_What_A_Net10_Consumer_Has()
+    {
+        var result = GeneratorTestDriver.Run(
+            File.ReadAllText(PetstorePath),
+            serviceName: "PetService",
+            namespaceName: "SharpPortico.Samples.Generated");
+
+        Assert.Empty(result.Diagnostics);
+
+        // The product ships on net10 and net11, so the emitted code has to fit in net10's language version
+        // as well - a claim that is easy to make and cheap to check.
+        Assert.Empty(GeneratedCodeCompiler.Errors(result.Sources.Values, LanguageVersion.CSharp14));
     }
 
     [Fact]

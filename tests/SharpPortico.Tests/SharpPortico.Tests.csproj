@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>$(SharpPorticoNetTargetFramework)</TargetFramework>
+    <!-- The tests run on every framework the product ships on, which is what makes "we support both" a
+         fact rather than an intention. -->
+    <TargetFrameworks>$(SharpPorticoNetTargetFrameworks)</TargetFrameworks>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <RootNamespace>SharpPortico.Tests</RootNamespace>
