@@ -270,10 +270,15 @@ internal static class MessageEmitter
             foreach (var f in msg.Fields)
             {
                 w.Line($"case {ConstTag(f)}:");
+                // The case body gets its own scope. Two enum fields in one message would otherwise both
+                // declare "v" in the switch's scope, which does not compile (CS0128) - and a scoped case
+                // body is what protoc emits too.
+                w.Line("{");
                 w.Open();
                 EmitCaseBody(w, f);
                 w.Line("break;");
                 w.Close();
+                w.Line("}");
             }
             w.Line("default:");
             w.Open();

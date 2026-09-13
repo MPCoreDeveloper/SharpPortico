@@ -36,5 +36,6 @@ public class GeneratorSnapshotTests
         var result = GeneratorTestDriver.Run(spec, serviceName: "PetService", namespaceName: "SharpPortico.Samples.Generated");
 
         Assert.Empty(result.Diagnostics);
+        Assert.Empty(GeneratedCodeCompiler.Errors(result.Sources.Values));
     }
 }

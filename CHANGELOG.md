@@ -4,6 +4,26 @@ All notable changes to SharpPortico are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0-RC.4] - 2026-09-13
+
+### Fixed
+- **A message with two enum properties did not compile.** The protobuf deserialiser declares a local per
+  enum field, and each `case` body was emitted without its own scope, so two enums in one message emitted
+  `var v` twice into the same `switch` scope — CS0128 (and CS0165 downstream) in generated source, for a
+  specification that maps cleanly and reports no diagnostics. Each case body now has its own scope, which
+  is also what protoc emits. A contract with several enum-typed properties is ordinary, so the failure
+  looked like a typo in the consumer's code rather than a generator defect.
+
+### Added
+- **The generated contract is compiled in the test suite, not only inspected.** A text assertion cannot
+  catch a contract that does not compile, which is a generator's most damaging failure: the consumer
+  discovers it inside a generated file. `GeneratedCodeCompiler` compiles the emitted sources against the
+  framework and the packages the output names, and `GeneratedCodeCompilationTests` runs it over the
+  petstore contract and over a specification with two enum properties — the case above. The existing
+  `Petstore_Generated_Code_Compiles_With_Real_References` now compiles instead of asserting the absence
+  of diagnostics, which is what it always claimed to do.
+
+
 ## [0.4.0-RC.3] - 2026-09-13
 
 ### Fixed
