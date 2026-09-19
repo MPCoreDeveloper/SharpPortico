@@ -119,6 +119,18 @@ internal static class Diagnostics
         isEnabledByDefault: true,
         description: "Two different messages with one name would land in one file, which does not compile.");
 
+    /// <summary>SP2007: two inline enumerations share a generated name but declare different members.</summary>
+    public static DiagnosticDescriptor DuplicateEnumerationName { get; } = new(
+        id: "SP2007",
+        title: "Enumeration name produced twice",
+        messageFormat: "SharpPortico cannot map '{0}': the inline enumeration named '{1}' is declared twice with "
+            + "different members ('{2}' and '{3}'). An inline enumeration is named after the property declaring it, so "
+            + "two schemas with a property of that name collide - declare one of them as a named schema under components",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "One generated enumeration name cannot carry two member sets, and keeping the first silently "
+            + "drops the second.");
     /// <summary>SP2006: a property would generate a member named like its enclosing type, which cannot compile.</summary>
     public static DiagnosticDescriptor MemberNameEqualsType { get; } = new(
         id: "SP2006",

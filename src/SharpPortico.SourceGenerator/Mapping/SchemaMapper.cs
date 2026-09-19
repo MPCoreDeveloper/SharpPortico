@@ -24,6 +24,7 @@ internal sealed class SchemaMapper
     private readonly CancellationToken _ct;
     private readonly Dictionary<string, MessageModel> _messages = new(StringComparer.Ordinal);
     private readonly Dictionary<string, EnumModel> _enums = new(StringComparer.Ordinal);
+    private readonly List<(string Name, string Existing, string Declared)> _enumConflicts = [];
 
     /// <summary>Component schemas of the document being mapped; used to detect enum references.</summary>
     public IDictionary<string, OpenApiSchema>? ComponentSchemas => _document.Components?.Schemas;
@@ -34,6 +35,16 @@ internal sealed class SchemaMapper
     /// <summary>All enums registered during mapping (by name, first wins).</summary>
     public IReadOnlyList<EnumModel> GetAllEnums() => _enums.Values.ToList();
 
+    /// <summary>
+    /// Gets the enumerations that collided: one generated name, two member sets.
+    /// </summary>
+    /// <remarks>
+    /// Reported rather than resolved, because both resolutions are worse than saying so: keeping the first silently
+    /// drops the second lifecycle's members, and inventing a distinct name for the second hands the contract a type
+    /// nobody wrote and a consumer something new to depend on.
+    /// </remarks>
+    public IReadOnlyList<(string Name, string Existing, string Declared)> EnumConflicts => _enumConflicts;
+
     public SchemaMapper(OpenApiDocument document, CancellationToken ct)
     {
         _document = document;
@@ -43,12 +54,50 @@ internal sealed class SchemaMapper
     /// <summary>True when the schema declares enum values.</summary>
     public static bool IsEnum(OpenApiSchema schema) => schema.Enum is { Count: > 0 };
 
-    /// <summary>Maps an enum schema to an <see cref="EnumModel"/> and registers it.</summary>
+    /// <summary>
+    /// Maps an enum schema to an <see cref="EnumModel"/> and registers it.
+    /// </summary>
+    /// <remarks>
+    /// An enumeration's identity is its generated name <em>and</em> its members. Two inline enumerations that declare
+    /// the same members are one type and are shared, which is what a contract expects when the same vocabulary appears
+    /// in several schemas. Two that declare different members under one name are refused rather than resolved: keeping
+    /// the first silently drops the second lifecycle's members, and inventing a name for the second gives the contract
+    /// a type nobody wrote and a consumer something new to depend on.
+    /// </remarks>
     public EnumModel MapEnum(string name, OpenApiSchema schema)
     {
         _ct.ThrowIfCancellationRequested();
-        if (_enums.TryGetValue(name, out var existing)) return existing;
 
+        var key = SanitizePascal(name);
+        var declared = Values(schema);
+
+        if (_enums.TryGetValue(key, out var existing))
+        {
+            var declaredText = Names(declared);
+
+            if (string.Equals(Names(existing.Values), declaredText, StringComparison.Ordinal)) return existing;
+
+            _enumConflicts.Add((existing.Name, Names(existing.Values), declaredText));
+
+            return new EnumModel(key, declared);
+        }
+
+        var model = new EnumModel(key, declared);
+        _enums[key] = model;
+        return model;
+    }
+
+    /// <summary>The member names of an enumeration, in declaration order, as one comparable string.</summary>
+    /// <param name="values">The members.</param>
+    /// <returns>The names.</returns>
+    private static string Names(ImmutableArray<EnumValueModel> values) =>
+        string.Join(", ", System.Linq.Enumerable.Select(values, static v => v.Name));
+
+    /// <summary>Reads the members a schema declares.</summary>
+    /// <param name="schema">The schema.</param>
+    /// <returns>The members.</returns>
+    private static ImmutableArray<EnumValueModel> Values(OpenApiSchema schema)
+    {
         var builder = ImmutableArray.CreateBuilder<EnumValueModel>();
         var number = 0;
         if (schema.Enum is { Count: > 0 })
@@ -67,9 +116,8 @@ internal sealed class SchemaMapper
                 number++;
             }
         }
-        var model = new EnumModel(SanitizePascal(name), builder.ToImmutable());
-        _enums[name] = model;
-        return model;
+
+        return builder.ToImmutable();
     }
 
     /// <summary>

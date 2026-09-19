@@ -78,6 +78,19 @@ internal static class OpenApiParser
             return ParseResult.Failure(item, conflict);
         }
 
+        // 5c) Two enumerations behind one name is the same class of defect as two messages behind one name, and it is
+        //     refused here for the same reason: the generated file would either not compile or quietly carry one
+        //     lifecycle's members under the other's name, and the consumer would be reading generated source to find out
+        //     which.
+        if (schemaMapper.EnumConflicts.Count > 0)
+        {
+            var (name, existing, declared) = schemaMapper.EnumConflicts[0];
+
+            return ParseResult.Failure(item, new GeneratorDiagnostic(
+                Diagnostics.Diagnostics.DuplicateEnumerationName,
+                new object[] { item.FilePath, name, existing, declared }));
+        }
+
         // 6) Auth schemes
         var authSchemes = (item.GenerateAuthMetadataHelpers || item.GenerateAuthInterceptors)
             ? MapAuthSchemes(document)
