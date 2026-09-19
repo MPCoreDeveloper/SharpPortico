@@ -10,6 +10,38 @@ namespace SharpPortico.Tests;
 /// </summary>
 public class ContractRefusalTests
 {
+    /// <summary>
+    /// A document the reader cannot parse is refused with the reader's own words.
+    /// </summary>
+    /// <remarks>
+    /// The shape below is the one that cost a real session: a property whose value is a plain scalar where a mapping
+    /// belongs (a literal backslash-n from a scripted edit, in that case). The reader reports it and hands back a
+    /// document without an info section - and answering "missing info/title section" sent the caller to inspect the one
+    /// part of the file that was fine, for as long as it took to read the whole contract by hand.
+    /// </remarks>
+    [Fact]
+    public void A_Document_That_Fails_To_Parse_Is_Refused_With_The_Readers_Own_Complaint()
+    {
+        // A tab where YAML allows only spaces: the reader reports it by name, so a refusal that answers
+        // "missing info/title section" instead is hiding the one message the caller can act on.
+        var spec = Spec(
+            "openapi: 3.0.3",
+            "info: { title: Broken, version: 1.0.0 }",
+            "components:",
+            "\tschemas:",
+            "    Thing:",
+            "      type: object",
+            "      properties:",
+            "        text: { type: string }");
+
+        var result = GeneratorTestDriver.TryRun(spec, serviceName: "BrokenService");
+
+        var refusal = result.Diagnostics.FirstOrDefault(d => d.StartsWith("SP1000", StringComparison.Ordinal));
+
+        Assert.NotNull(refusal);
+        Assert.DoesNotContain("missing info/title section", refusal, StringComparison.Ordinal);
+    }
+
     private static string Spec(params string[] lines) => string.Join('\n', lines);
 
     [Fact]

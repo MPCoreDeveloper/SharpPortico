@@ -43,9 +43,15 @@ internal static class OpenApiParser
         }
         if (document is null || document.Info is null)
         {
+            // A document that came back without an info section is a document that failed to parse, and the reader
+            // already said why - reporting the symptom instead ("missing info/title section") sends the caller looking
+            // at the one part of the file that is almost always fine, while the reader's own message names the line.
+            var detail = ReaderComplaint(diags)
+                ?? "missing info/title section";
+
             return ParseResult.Failure(item, new GeneratorDiagnostic(
                 Diagnostics.Diagnostics.CannotParseOpenApiFile,
-                new object[] { item.FilePath, "missing info/title section" }));
+                new object[] { item.FilePath, detail }));
         }
 
         ct.ThrowIfCancellationRequested();
@@ -98,6 +104,32 @@ internal static class OpenApiParser
     {
         if (!string.IsNullOrEmpty(item.Content)) return item.Content;
         return ResolveContentFromFiles(item, files);
+    }
+
+    /// <summary>
+    /// The first complaint the OpenAPI reader itself made, or <see langword="null"/> when it made none.
+    /// </summary>
+    /// <remarks>
+    /// The reader reports recoverable errors while still returning a document, and a document in that state can be
+    /// missing whole sections - which is exactly when a caller needs the reader's words rather than the generator's.
+    /// The SP1000 diagnostics are the reader's own messages, so that is where this reads them from.
+    /// </remarks>
+    /// <param name="diags">The diagnostics collected so far.</param>
+    /// <returns>The complaint, or <see langword="null"/>.</returns>
+    private static string? ReaderComplaint(ImmutableArray<GeneratorDiagnostic>.Builder diags)
+    {
+        foreach (var diagnostic in diags)
+        {
+            if (diagnostic.Descriptor.Id != Diagnostics.Diagnostics.CannotParseOpenApiFile.Id) continue;
+
+            if (diagnostic.Arguments.Length > 0
+                && diagnostic.Arguments[diagnostic.Arguments.Length - 1]?.ToString() is { Length: > 0 } complaint)
+            {
+                return complaint;
+            }
+        }
+
+        return null;
     }
 
     private static (OpenApiDocument? Document, GeneratorDiagnostic? Fatal) TryParseDocument(
