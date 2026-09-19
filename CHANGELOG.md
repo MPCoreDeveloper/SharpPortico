@@ -4,6 +4,22 @@ All notable changes to SharpPortico are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2-preview.1] - 2026-09-19
+
+### Fixed
+- **A document that fails to parse is refused with the reader's own complaint.** `SP1000` answered "missing
+  info/title section" whenever the parsed document came back without an info section, and dropped the OpenAPI
+  reader's own message on the floor. A document only reaches that state *because* the reader refused part of it,
+  so the refusal now reports the first reader error and falls back to the old text only when the reader said
+  nothing at all. The cost of the old behaviour is measured: a caller spent a long hunt through an eight-thousand
+  line specification, reading the one section that was fine.
+
+### Known limitations
+- **A free-form object (`type: object` with `additionalProperties`) is still not mapped.** Such a property is
+  dropped from the generated message without a diagnostic, so the consumer sees a compiler error in generated
+  code rather than a refusal here. The protobuf answer is `google.protobuf.Struct`; until that lands, declare the
+  field as `type: string` carrying JSON text — which is what the contract that found this does.
+
 ## [1.1.1] - 2026-09-13
 
 ### Fixed
