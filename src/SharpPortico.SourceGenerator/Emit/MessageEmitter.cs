@@ -422,8 +422,21 @@ internal static class MessageEmitter
         w.Line($"public {FieldPropertyType(f)} {f.Name} {{ get; set; }}");
     }
 
+    private static readonly System.Collections.Generic.Dictionary<string, string> WellKnownCsTypes = new()
+    {
+        ["google.protobuf.Struct"] = "global::Google.Protobuf.WellKnownTypes.Struct"
+    };
+
     private static string FieldPropertyType(FieldModel f)
     {
+        // A well-known type is declared outside every file this generator writes, so its C# name is its own and is not
+        // the proto name the rest of the model carries.
+        if (f.Kind == FieldKind.Message && f.TypeName is { } wellKnown && WellKnownCsTypes.TryGetValue(wellKnown, out var wellKnownCs))
+        {
+            return (f.IsRepeated ? "global::Google.Protobuf.Collections.RepeatedField<" : "") + wellKnownCs
+                + (f.IsRepeated ? ">" : "");
+        }
+
         if (f.IsRepeated)
         {
             if (f.Kind == FieldKind.Message || f.Kind == FieldKind.Enum) return f.TypeName ?? "string";

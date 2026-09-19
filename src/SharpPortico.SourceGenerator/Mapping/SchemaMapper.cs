@@ -20,6 +20,12 @@ internal sealed class SchemaMapper
     private const string StringFieldType = "string";
     private const string ObjectSchemaType = "object";
 
+    /// <summary>The proto type a free-form object maps to.</summary>
+    private const string StructProtoType = "google.protobuf.Struct";
+
+    /// <summary>The C# type a free-form object maps to, which is protobuf's own.</summary>
+    private const string StructCsType = "global::Google.Protobuf.WellKnownTypes.Struct";
+
     private readonly OpenApiDocument _document;
     private readonly CancellationToken _ct;
     private readonly Dictionary<string, MessageModel> _messages = new(StringComparer.Ordinal);
@@ -340,6 +346,20 @@ internal sealed class SchemaMapper
         // inline object / nested message
         if (schema.Properties is { Count: > 0 } || schema.Type == ObjectSchemaType)
         {
+            // An object that declares no properties is a free-form object - "any JSON object" - and proto3 has a type
+            // for exactly that. Mapping it to a nested message produced a placeholder instead (a message whose only
+            // member was `_HasValue`), which is not what the contract said and is not something a consumer can use.
+            if (schema.Properties is not { Count: > 0 })
+            {
+                return new FieldModel(
+                    SanitizePascal(name),
+                    ToProtoName(name),
+                    ++fieldNo,
+                    FieldKind.Message,
+                    StructCsType,
+                    StructProtoType);
+            }
+
             var nestedName = SanitizePascal(name);
             if (!owner._messages.ContainsKey(nestedName))
             {
@@ -376,6 +396,19 @@ internal sealed class SchemaMapper
         }
         if (items.Properties is { Count: > 0 } || items.Type == ObjectSchemaType)
         {
+            // The element of an array is a free-form object, or a nested message - the same distinction as a property's.
+            if (items.Properties is not { Count: > 0 })
+            {
+                return new FieldModel(
+                    repeatedName,
+                    ToProtoName(name),
+                    ++fieldNo,
+                    FieldKind.Message,
+                    StructCsType,
+                    StructProtoType,
+                    IsRepeated: true);
+            }
+
             var nestedName = repeatedName;
             if (!owner._messages.ContainsKey(nestedName))
             {

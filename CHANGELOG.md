@@ -4,6 +4,25 @@ All notable changes to SharpPortico are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0-preview.1] - 2026-09-19
+
+### Added
+- **A free-form object (`type: object` with `additionalProperties`, or any object that declares no properties) maps to
+  `google.protobuf.Struct`.** This was the one gap that forced a contract to carry JSON as a string: a recorded payload
+  said "any JSON object" and got back a placeholder message whose only member was `_HasValue`, which is not what the
+  contract said and not something a consumer can use. It holds for an array element too (`repeated …Struct`), in the
+  generated C# and in the descriptor. `Struct` is protobuf's own answer for "any JSON object", so a consumer receives a
+  real value with a type it already has.
+
+### Known limitations
+- **No import is emitted for a well-known type.** A `.proto` that names `google.protobuf.Struct` (or `Timestamp`) without
+  `import "google/protobuf/struct.proto";` does not compile. The gap predates this mapping - the descriptor emitter
+  writes `syntax`, `package`, `option`, then declarations, and nothing anywhere emits an import - so it is recorded here
+  rather than papered over by a test that would pass while the file is wrong. The generated C# is unaffected.
+- **A free-form object is not mapped to a typed `map<…>`.** `additionalProperties: { type: string }` is a statement about
+  a value type, and `Struct` is looser than that. `Struct` is chosen deliberately as the honest general answer until a
+  contract needs the stricter mapping.
+
 ## [1.1.4-preview.1] - 2026-09-19
 
 ### Fixed
