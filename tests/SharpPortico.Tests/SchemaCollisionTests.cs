@@ -16,15 +16,16 @@ namespace SharpPortico.Tests;
 public class SchemaCollisionTests
 {
     /// <summary>
-    /// Two enumerations that happen to share a property name but declare different members are refused.
+    /// Two enumerations that share a property name but declare different members become two types.
     /// </summary>
     /// <remarks>
-    /// Refused rather than resolved: an inline enumeration is named after the property that declares it, so the two
-    /// cannot both be `StateEnum` - and either resolution is worse than saying so. Keeping the first silently drops the
-    /// second lifecycle's members; inventing a name for the second hands the contract a type nobody wrote.
+    /// The first keeps the name the property implies; the second is named after its members, because the contract never
+    /// named it and its members are exactly what make it a different type. Refusing would have been the other honest
+    /// option, and it was the first thing tried - but a contract that already declares a one-member `state` beside the
+    /// artifact lifecycle's is a legitimate contract, and refusing it would break working deployments to fix a bug.
     /// </remarks>
     [Fact]
-    public void Two_Enumerations_With_One_Name_And_Different_Members_Are_Refused()
+    public void Two_Enumerations_With_One_Name_And_Different_Members_Become_Two_Types()
     {
         var spec = Spec(
             "openapi: 3.0.3",
@@ -59,14 +60,16 @@ public class SchemaCollisionTests
             "      properties:",
             "        state: { type: string, enum: [open, closed, expired] }");
 
-        var result = GeneratorTestDriver.TryRun(spec, serviceName: "CollisionService");
+        var result = GeneratorTestDriver.Run(spec, serviceName: "CollisionService");
+        var emitted = result.GeneratedSource;
 
-        Assert.Empty(result.Sources);
-        Assert.Contains(
-            result.Diagnostics,
-            d => d.StartsWith("SP2007", StringComparison.Ordinal)
-                && d.Contains("Pending", StringComparison.Ordinal)
-                && d.Contains("Open", StringComparison.Ordinal));
+        // Both lifecycles have to exist, with their own members - and as two enumerations, not one.
+        Assert.Contains("Pending", emitted, StringComparison.Ordinal);
+        Assert.Contains("Committed", emitted, StringComparison.Ordinal);
+        Assert.Contains("Open", emitted, StringComparison.Ordinal);
+        Assert.Contains("Closed", emitted, StringComparison.Ordinal);
+        Assert.Contains("Expired", emitted, StringComparison.Ordinal);
+        Assert.Equal(2, Occurrences(emitted, "public enum "));
     }
 
     /// <summary>Two enumerations with identical members are one type, which is what sharing a vocabulary means.</summary>

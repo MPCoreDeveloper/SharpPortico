@@ -77,9 +77,25 @@ internal sealed class SchemaMapper
 
             if (string.Equals(Names(existing.Values), declaredText, StringComparison.Ordinal)) return existing;
 
-            _enumConflicts.Add((existing.Name, Names(existing.Values), declaredText));
+            // The contract declared a second enumeration under a name that is already taken, with different members. The
+            // name is derived from the members, because the contract never named this one and the members are what makes
+            // it a different type: a `state` whose only member is `purged` is not the artifact lifecycle, it is the
+            // answer to a purge.
+            var derived = key + string.Concat(System.Linq.Enumerable.Select(declared, static v => v.Name));
 
-            return new EnumModel(key, declared);
+            if (_enums.TryGetValue(derived, out var known))
+            {
+                if (string.Equals(Names(known.Values), declaredText, StringComparison.Ordinal)) return known;
+
+                _enumConflicts.Add((derived, Names(known.Values), declaredText));
+
+                return known;
+            }
+
+            var distinct = new EnumModel(derived, declared);
+            _enums[derived] = distinct;
+
+            return distinct;
         }
 
         var model = new EnumModel(key, declared);

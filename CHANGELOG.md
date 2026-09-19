@@ -4,6 +4,17 @@ All notable changes to SharpPortico are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4-preview.1] - 2026-09-19
+
+### Fixed
+- **A colliding inline enumeration is named after its members instead of being refused.** `1.1.3-preview.1` refused the
+  case with `SP2007`, which was the wrong call: a contract that already declares a one-member `state` (the answer to a
+  purge) beside the artifact lifecycle's (`pending`, `committed`, `purged`) is a legitimate contract, and refusing it
+  breaks working deployments to fix a bug that was latent in them. The first enumeration keeps the name its property
+  implies; a second one with different members is registered as `{Name}{Members}`, which is deterministic, collision
+  free while the members differ, and says what the type is. `SP2007` remains for the case where even that name is
+  taken by a third member set, which is a contract that cannot be resolved mechanically.
+
 ## [1.1.3-preview.1] - 2026-09-19
 
 ### Fixed
