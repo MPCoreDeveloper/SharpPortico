@@ -4,6 +4,17 @@ All notable changes to SharpPortico are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3-preview.1] - 2026-09-19
+
+### Fixed
+- **An enumeration's identity is its name *and* its members.** An inline enumeration is named after the property that
+  declares it, and the mapper kept one model per name — so a second `state` with different members silently inherited
+  the first one's members. Found by consuming the package: an artifact lifecycle (`pending`, `committed`, `purged`) and
+  a session lifecycle (`open`, `closed`, `expired`) both declare `state`, and the session's members landed nowhere.
+  Nothing failed until a consumer referenced them, and then it failed inside generated source. Identical member sets
+  stay one shared type, which is what a contract means when the same vocabulary appears in several schemas; different
+  member sets under one name are refused with `SP2007`, which names both member sets and says what to do instead.
+
 ## [1.1.2-preview.1] - 2026-09-19
 
 ### Fixed

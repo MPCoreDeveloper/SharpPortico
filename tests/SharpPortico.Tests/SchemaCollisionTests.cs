@@ -134,6 +134,15 @@ public class SchemaCollisionTests
             "          content:",
             "            application/json:",
             "              schema: { $ref: '#/components/schemas/RunbookList' }",
+            "  /runbooks/apply:",
+            "    post:",
+            "      operationId: ApplyRunbook",
+            "      responses:",
+            "        '200':",
+            "          description: ok",
+            "          content:",
+            "            application/json:",
+            "              schema: { $ref: '#/components/schemas/AppliedRunbook' }",
             "  /sessions:",
             "    post:",
             "      operationId: CreateSession",
@@ -158,6 +167,13 @@ public class SchemaCollisionTests
             "        runbooks:",
             "          type: array",
             "          items: { $ref: '#/components/schemas/RunbookVersion' }",
+            "    AppliedRunbook:",
+            "      type: object",
+            "      properties:",
+            "        runbook_ref: { type: string }",
+            "        name: { type: string }",
+            "        version: { type: integer, format: int32 }",
+            "        status: { type: string, enum: [active, removed] }",
             "    SessionCreated:",
             "      type: object",
             "      properties:",
@@ -170,10 +186,13 @@ public class SchemaCollisionTests
         var result = GeneratorTestDriver.Run(spec, serviceName: "NeighbourService");
         var runbook = ClassBody(result.GeneratedSource, "RunbookVersion");
 
-        Assert.Contains("Version", runbook, StringComparison.Ordinal);
-        Assert.Contains("Status", runbook, StringComparison.Ordinal);
-        Assert.DoesNotContain("SessionId", runbook, StringComparison.Ordinal);
-        Assert.DoesNotContain("PermittedCollections", runbook, StringComparison.Ordinal);
+        // One assertion carrying the body, so a failure shows what was actually emitted.
+        Assert.True(
+            runbook.Contains("Version", StringComparison.Ordinal)
+                && runbook.Contains("Status", StringComparison.Ordinal)
+                && !runbook.Contains("SessionId", StringComparison.Ordinal)
+                && !runbook.Contains("PermittedCollections", StringComparison.Ordinal),
+            runbook);
     }
 
     /// <summary>The emitted text of one generated class, up to the next class declaration.</summary>

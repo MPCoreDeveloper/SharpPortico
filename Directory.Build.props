@@ -20,9 +20,9 @@
     <!-- TFM for compiler-hosted assemblies (source generator + abstractions) -->
     <SharpPorticoGeneratorTargetFramework>netstandard2.0</SharpPorticoGeneratorTargetFramework>
     <SharpPorticoLangVersion>preview</SharpPorticoLangVersion>
-    <SharpPorticoProductVersion>1.1.2-preview.1</SharpPorticoProductVersion>
+    <SharpPorticoProductVersion>1.1.3-preview.1</SharpPorticoProductVersion>
     <!-- AssemblyVersion/FileVersion must be numeric; the package version may carry a prerelease suffix. -->
-    <SharpPorticoAssemblyVersion>1.1.2.0</SharpPorticoAssemblyVersion>
+    <SharpPorticoAssemblyVersion>1.1.3.0</SharpPorticoAssemblyVersion>
     <!-- Centralized versioning: every packable/runnable assembly uses the product version above. -->
     <Version>$(SharpPorticoProductVersion)</Version>
     <AssemblyVersion>$(SharpPorticoAssemblyVersion)</AssemblyVersion>
