@@ -4,7 +4,29 @@ All notable changes to SharpPortico are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0-preview.1] - 2026-09-30
+
+### Changed
+- **Every dependency is on its newest release except the three that cannot be, and those say why.**
+  `Google.Protobuf` 3.36.2, `Grpc.Core.Api` / `Grpc.Net.Client` / `Grpc.AspNetCore` 2.84.0, the
+  `Microsoft.Extensions.*` line from 8.0.x to 10.0.12, `System.Text.Json` 10.0.12, `System.CommandLine` 2.0.12,
+  `Microsoft.NET.Test.Sdk` 18.10.1, `xunit` 2.9.3, `xunit.runner.visualstudio` 4.0.0 and `coverlet.collector`
+  10.1.0 are the newest releases the projects can consume; two of the `NU1510` warnings the build carried are gone
+  as a result, because a reference the shared framework already provides is one an up-to-date version no longer
+  claims to supply. Three are held on purpose, with the reason stated in `Directory.Packages.props` beside the
+  version: `Microsoft.OpenApi` 1.6.31 (the last 1.6 release - 2.x/3.x replace the object model the whole mapping
+  layer is written against, so that move belongs to `Mapping/`, not to a version bump), `SharpYaml` 2.1.5 (the
+  last 2.x release - 3.x's `netstandard2.0` asset depends on `System.Text.Json`, `System.Buffers` and
+  `System.Collections.Immutable`, none of which the analyzer package ships, so a compiler running on .NET
+  Framework could not load it on the 3.1 path) and `Grpc.Core` 2.46.6, which is that package's final release. The
+  new set was verified by a full build, the 56 tests on `net10.0` and `net11.0`, the `protoc` step over every
+  sample's descriptor, and a `win-x64` NativeAOT publish whose native image runs the smoke test.
+- **The version is `1.3.0-preview.1`, and every document that names it names this one.** The three
+  `dotnet tool install` lines (`README.md`, `docs/SharpPortico.md`, and the CLI's own package readme) now pin the
+  version, because a bare `dotnet tool install -g SharpPortico.Cli` resolves the last *stable* release - 1.1.1 -
+  and would hand a reader a tool without the 3.1 mapping these pages describe. CI's version step checks those
+  three lines against `Directory.Build.props` along with the developer guide and the two package readmes, so an
+  install line cannot drift either.
 
 ### Fixed
 - **The generated C# for a free-form object did not compile.** `1.2.0-preview.1` mapped `type: object` with

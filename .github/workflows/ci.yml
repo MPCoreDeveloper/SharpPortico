@@ -75,7 +75,9 @@ jobs:
           ! grep -nE '!true|!false' "$generated"
 
       # The version a reader is told to expect is the version that is built and published. Both had drifted
-      # (the README badge said 1.1.1 while the packages were 1.2.0-preview.1), so the numbers are checked.
+      # (the README badge said 1.1.1 while the packages were 1.2.0-preview.1), so the numbers are checked - and the
+      # install lines with them: a bare `dotnet tool install` resolves the last stable release, not the preview the
+      # documentation describes.
       - name: Documented version matches the packaged version
         run: |
           packaged=$(grep -oP '(?<=<SharpPorticoProductVersion>)[^<]+' Directory.Build.props)
@@ -84,6 +86,13 @@ jobs:
           grep -q "Current version: \*\*$packaged\*\*" docs/SharpPortico.md
           grep -q "Version=\"$packaged\"" src/SharpPortico.SourceGenerator/README.md
           grep -q "Version=\"$packaged\"" src/SharpPortico.Runtime/README.md
+
+          for doc in README.md docs/SharpPortico.md src/SharpPortico.Cli/README.md; do
+            grep -q -- "--version $packaged" "$doc" || {
+              echo "$doc does not install SharpPortico.Cli $packaged"
+              exit 1
+            }
+          done
 
       # The tests and samples consume the generator as a project. This consumes the *package*, which is the
       # only path where NuGet's analyzers/-versus-lib rule applies - and the reason 1.0.0 shipped inert.
