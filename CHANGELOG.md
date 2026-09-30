@@ -4,6 +4,68 @@ All notable changes to SharpPortico are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **The generated C# for a free-form object did not compile.** `1.2.0-preview.1` mapped `type: object` with
+  `additionalProperties` to `google.protobuf.Struct` in the descriptor and in the property's declared type, but three
+  places behind them still named the *protobuf* type where C# was expected: the merge path emitted
+  `new google.protobuf.Struct()`, and the repeated path emitted `FieldCodec<google.protobuf.Struct>` beside
+  `FieldCodec.ForMessage(…, google.protobuf.Struct.Parser)`. A consumer compiling such a contract got
+  `CS0246: The type or namespace name 'google' could not be found` from inside a generated file. The element type is
+  now resolved in one place, which also fixes the repeated property, which had been wrapped twice
+  (`RepeatedField<RepeatedField<Struct>>`) - a declaration that contains the string the old test asserted on, and is
+  not what a consumer can use.
+- **The descriptor imports the file that declares a well-known type.** A `.proto` that names
+  `google.protobuf.Struct` without `import "google/protobuf/struct.proto";` does not compile, which is what the
+  `1.2.0-preview.1` entry recorded as a known limitation. The imports are now derived from the model: only the ones
+  the contract's own messages use, alphabetically ordered, ahead of the first definition - so a contract that names no
+  well-known type still carries none.
+- **Generated proxy code no longer emits unreachable code.** The JSON serializer's separator was folded at generation
+  time into `if (!true) sb.Append(',');`, so every consumer of proxy mode built against a `CS0162` warning and could
+  not build at all under `TreatWarningsAsErrors`. The first field now simply has no separator, which is what the
+  generated text already said it meant.
+- **An apiKey credential travels under a lowercase metadata key.** gRPC metadata keys are lowercase, and the generated
+  helper emitted the contract's own spelling (`X-API-Key`) while the scheme's own name was already lowercased in the
+  fallback case. Metadata keys are case-insensitive on the wire, so this corrects what the generated code claims rather
+  than changing what a server receives.
+- **The version a reader is told to expect is the version that is built.** The README badge said `1.1.1` while the
+  packages were `1.2.0-preview.1`, and the developer guide said `0.2.0` and ".NET 10" while the product ships on
+  net10.0 and net11.0. The badge now comes from NuGet itself, so it cannot drift, and CI fails when the documented
+  version and `Directory.Build.props` disagree.
+
+### Added
+- **`GenerateAuthInterceptors` generates an interceptor.** The option defaulted to `true` and nothing read it: only the
+  auth metadata helpers were emitted, and a helper only works at a call site that remembers to pass its result - the
+  credential goes missing on the one call that forgot it. A contract that declares a security scheme now also gets
+  `{Service}AuthInterceptor`, a `Grpc.Core.Interceptors.Interceptor` that attaches the credential to every shape of
+  call (unary, server streaming, client streaming, duplex and blocking unary), copies the caller's own metadata rather
+  than replacing it, and sends the call unauthenticated when the credential factory returns nothing. The credential
+  comes from a `Func<string?>` invoked per call, so a rotated token is picked up without rebuilding the interceptor,
+  and two schemes that share a header produce one entry rather than two.
+- **The proxy sample is built, and its generated code is inspected.** `samples/LegacyProxyExample` was in the
+  repository but in no solution and in no CI job, so the one sample that exercises proxy mode - and the only sample
+  whose contract declares a security scheme - had never been compiled. CI now builds it, emits the generated sources
+  to disk, and fails on a compiler warning inside them and on a folded `!true` / `!false`, which is the shape the
+  `CS0162` bug above had.
+- **A NativeAOT sample publishes a 3.1 contract as a native image and runs it.** `samples/NativeAotExample` (in the
+  solution and in CI) generates from an OpenAPI 3.1 document that uses the constructs the 3.0 reader cannot read - a
+  `type` array, a `const`, `prefixItems`, `contentEncoding: base64`, a numeric `exclusiveMinimum`, a `$defs`
+  reference, a `webhook` and a `jsonSchemaDialect` - publishes it with `PublishAot`, and then drives the generated
+  `Grpc.Core` server and the generated client from one process: register, read back, list, retire, and a round trip
+  through the 3.1-only properties, each asserted. It exits non-zero on the first failure, so the sample is a test.
+  CI's `native-aot` job publishes `win-x64`, fails when a managed `NativeAotExample.dll` sits beside the native
+  executable - the shape a publish that quietly fell back to IL leaves behind - and then runs the executable and
+  requires exit `0` with `SMOKE TEST PASSED` in the output.
+- **Every sample's descriptor is compiled by `protoc` in CI.** The descriptor is emitted as a string const that no
+  compiler reads, so a `.proto` that names an undeclared type or omits an import builds green - which is exactly how
+  the missing `google/protobuf/struct.proto` import above reached a consumer. `.github/scripts/check-protos.sh` runs
+  the CLI over each sample's spec, writes the descriptor to its own temp directory, and compiles it with
+  `protoc --descriptor_set_out`, failing on the first error; a missing CLI or include directory fails the step rather
+  than skipping it. The check was planted with both defects (an unknown type, a missing import) and rejects each. A
+  new `.gitattributes` pins `*.sh` to LF, because a shell script that reaches a runner with CRLF endings dies on
+  `set -euo pipefail` before it checks anything.
+
 ## [1.2.0-preview.1] - 2026-09-19
 
 ### Added

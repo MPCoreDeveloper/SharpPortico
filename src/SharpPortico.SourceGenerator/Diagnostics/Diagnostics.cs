@@ -98,12 +98,23 @@ internal static class Diagnostics
         id: "SP1002",
         title: "OpenAPI 3.1 parsed as 3.0",
         messageFormat: "SharpPortico parsed '{0}' as OpenAPI 3.0: the bundled parser (Microsoft.OpenApi 1.6.x) does "
-            + "not read a 3.1 document. Everything 3.0 and 3.1 share maps normally; constructs only 3.1 adds - a "
-            + "type array, prefixItems, webhooks, jsonSchemaDialect, $defs - are not mapped",
+            + "not read a 3.1 document, so it was rewritten to the 3.0 equivalent first - {1}",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "The declared version is rewritten to 3.0 before parsing, so a 3.0-compatible 3.1 document maps as it stands.");
+        description: "A 3.1 document is rewritten to 3.0 before parsing: every 3.0 and 3.1 construct maps "
+            + "normally, and each 3.1-only construct is mapped to its protobuf equivalent or reported with SP1003.");
+
+    /// <summary>SP1003: a 3.1 construct was mapped, but not exactly.</summary>
+    public static DiagnosticDescriptor OpenApi31FidelityLoss { get; } = new(
+        id: "SP1003",
+        title: "OpenAPI 3.1 construct mapped with a loss",
+        messageFormat: "SharpPortico mapped {0} in '{1}', but {2}",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A 3.1 construct that has no protobuf equivalent of its own is still mapped - the contract "
+            + "keeps its types and operations - and this says what the mapping does not carry over.");
 
     // ---- Mapping, continued (2000) ----
 

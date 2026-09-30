@@ -3,7 +3,8 @@
 **Incremental Source Generator: OpenAPI 3.0/3.1 → gRPC + Protobuf + C# 14**
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ff69b4)](https://github.com/sponsors/MPCoreDeveloper)
-[![Version](https://img.shields.io/badge/version-1.1.1-blue)](CHANGELOG.md)
+[![NuGet](https://img.shields.io/nuget/vpre/SharpPortico.SourceGenerator)](https://www.nuget.org/packages/SharpPortico.SourceGenerator)
+[![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-blue)](/CHANGELOG.md)
 
 SharpPortico is a compile-time source generator that converts OpenAPI specifications (YAML or JSON) into production-quality gRPC services, protobuf messages, and modern C# 14 client/server code — zero reflection, NativeAOT-safe, fully AOT compatible. An optional **proxy mode** turns it into a gRPC↔REST gateway for legacy REST APIs.
 
@@ -15,7 +16,7 @@ Runs on **.NET 10 and .NET 11**. The generator itself is `netstandard2.0`, which
 
 - 🚀 **`IIncrementalGenerator`** — fast incremental pipeline, safe on 10k-line specs
 - 📦 **C# 14** output — primary constructors, collection expressions, required members, file-scoped namespaces
-- 🧱 **NativeAOT / reflection-free** — hand-written `IMessage<T>` implementations, no `Activator`
+- 🧱 **NativeAOT / reflection-free** — hand-written `IMessage<T>` implementations, no `Activator`; `samples/NativeAotExample` is a 3.1 contract published as a native image and run in CI, so the claim is a binary that runs rather than a flag
 - 🌐 **Both server and client, and both hosts** — the generated `ServiceBase` is served by `Grpc.Core` or by ASP.NET Core's `MapGrpcService`, alongside a modern typed client (`GrpcChannel`)
 - 🔁 **Proxy mode** — generated `{Service}Proxy : ServiceBase` forwards gRPC → legacy REST (X-Api-Key outbound, response cache with per-call bypass, ULID client keys, audit logging)
 - 🔐 **Auth mapped** — Bearer / API-Key / OAuth2 metadata helpers and interceptors
@@ -47,6 +48,7 @@ flowchart LR
 | request body | Nested message; `application/octet-stream` → `bytes` |
 | response | `*Response` message + google.rpc.Status-shaped error wrapper |
 | components/schemas | `message` definitions; `$ref`, `allOf`, `oneOf`/`anyOf` resolved |
+| OpenAPI **3.1** — `type` arrays, `const`, `prefixItems`, `contentEncoding`, numeric exclusive bounds, `$defs`, `webhooks` | read through a 3.0 rewrite; each construct is mapped, and what it lost is reported (`SP1002`/`SP1003`) rather than passed over |
 | arrays | `repeated` fields |
 | enums | protobuf enums |
 | authentication | metadata helpers + interceptors for Bearer / API-Key / OAuth2 |
@@ -114,6 +116,9 @@ RPC's own name, so the base also declares `ListPets(request, context)`, which fo
 > **NativeAOT:** the messages, the contract and the client are reflection-free, but grpc-dotnet's *server* binds
 > by reflection — it looks up the binder method and each handler at startup — so an ASP.NET Core gRPC server is
 > not an AOT target. That is a property of grpc-dotnet rather than of the generated code.
+>
+> The `Grpc.Core` host above is the AOT-safe server, which is what `samples/NativeAotExample` publishes: a native
+> executable that serves the generated contract and drives the generated client from the same process.
 
 ## Proxy mode (gRPC clients → legacy REST)
 
@@ -141,7 +146,7 @@ server.Services.Add(UserService.BindService(
 - **Keys never hardcoded**: `IKeyProvider` (config / Key Vault / delegate).
 - **Audit**: `ProxyAuditEnabled = true` (or inject `IProxyAuditLogger`) logs client, RPC, cache-hit, HTTP status.
 
-Live end-to-end demo: `samples/LegacyProxyExample`. Full developer guide: `docs/SharpPortico.md`. NuGet package readmes: `src/SharpPortico.SourceGenerator/README.md`, `src/SharpPortico.Runtime/README.md`, `src/SharpPortico.Cli/README.md`.
+Live end-to-end demo: `samples/LegacyProxyExample`. OpenAPI 3.1 + NativeAOT demo: `samples/NativeAotExample`. Full developer guide: `docs/SharpPortico.md`. NuGet package readmes: `src/SharpPortico.SourceGenerator/README.md`, `src/SharpPortico.Runtime/README.md`, `src/SharpPortico.Cli/README.md`.
 
 ## Repo layout
 
@@ -155,17 +160,31 @@ SharpPortico/
 ├── samples/
 │   ├── GrpcServerExample/              // full gRPC server + client (petstore)
 │   ├── MinimalApiExample/              // ASP.NET Minimal API over the gRPC client
-│   └── LegacyProxyExample/             // gRPC→REST proxy: cache hit + bypass demo
+│   ├── LegacyProxyExample/             // gRPC→REST proxy: cache hit + bypass demo
+│   └── NativeAotExample/               // OpenAPI 3.1 contract published as a native image (PublishAot)
 ├── tests/
 │   └── SharpPortico.Tests/             // xunit snapshot + mapping + perf tests
-└── docs/
+├── docs/
+└── .github/scripts/check-protos.sh     // compiles every sample's emitted descriptor with protoc
 ```
 
 ## CLI
 
 ```bash
-dotnet run --project src/SharpPortico.Cli -- generate openapi/petstore.yaml --out out/
+dotnet tool install -g SharpPortico.Cli
+
+# What the mapping makes of the spec: service, namespace, package, RPC surface, counts, diagnostics
+sharpportico generate openapi/petstore.yaml
+
+# And the descriptor a build of it would ship
+sharpportico generate openapi/petstore.yaml --out out/
 ```
+
+The descriptor comes from the emitter the generator itself calls and is LF-normalized exactly as the generated
+`{Service}Proto.Text` const holds it, so the file and a build of the same spec cannot disagree — which is what makes it
+worth handing to `protoc`, to a client generator or to a reviewer. The C# compiler never reads that descriptor, so CI
+compiles every sample's with `protoc` (`.github/scripts/check-protos.sh`): a name `protoc` rejects, or an import left
+out of the file, is otherwise a build that stays green.
 
 ## JavaPortico
 

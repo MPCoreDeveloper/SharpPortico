@@ -15,8 +15,25 @@
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Microsoft.OpenApi.Readers" />
     <PackageReference Include="SharpYaml" />
+    <!--
+      The generator's diagnostics are Roslyn diagnostics, so the CLI has to be able to load the compiler
+      assembly to read a DiagnosticDescriptor's id and message. It is a build-time dependency of the
+      generator (PrivateAssets="all" there), which is why it is declared again here.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+
+  <!--
+    The CLI is a thin host over the generator's own mapping pipeline and descriptor emitter: the .proto it
+    writes is the descriptor the generator embeds as a const string, and the diagnostics it prints are the
+    ones the compiler would report on the same spec. Re-implementing either would let them drift, and a
+    preview tool that disagrees with the build is worse than no tool.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\SharpPortico.SourceGenerator\SharpPortico.SourceGenerator.csproj" />
   </ItemGroup>
 
 </Project>

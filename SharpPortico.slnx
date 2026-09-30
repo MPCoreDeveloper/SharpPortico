@@ -7,7 +7,9 @@
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/GrpcServerExample/GrpcServerExample.csproj" />
+    <Project Path="samples/LegacyProxyExample/LegacyProxyExample.csproj" />
     <Project Path="samples/MinimalApiExample/MinimalApiExample.csproj" />
+    <Project Path="samples/NativeAotExample/NativeAotExample.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SharpPortico.Tests/SharpPortico.Tests.csproj" />

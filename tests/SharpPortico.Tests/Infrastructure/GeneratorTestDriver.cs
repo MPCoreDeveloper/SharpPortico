@@ -47,6 +47,27 @@ internal static class GeneratorTestDriver
     }
 
     /// <summary>
+    /// The .proto descriptor as emitted, unescaped, for a test that has to assert on proto syntax rather than
+    /// on the C# string the descriptor travels in.
+    /// </summary>
+    /// <param name="specContent">The specification to generate from.</param>
+    /// <param name="serviceName">The service name to generate.</param>
+    /// <param name="ct">The cancellation token for the pipeline.</param>
+    public static string Proto(string specContent, string? serviceName = null, CancellationToken ct = default)
+    {
+        var item = Item(specContent, serviceName, null);
+        var result = OpenApiParser.ParseAndMap(item, ImmutableArray<AdditionalFileRequest>.Empty, ct);
+
+        if (!result.IsSuccess || result.Model is null)
+        {
+            throw new InvalidOperationException(
+                "Mapping failed: " + string.Join(" | ", result.Diagnostics.Select(d => d.ToString())));
+        }
+
+        return ProtoEmitter.Emit(result.Model, item);
+    }
+
+    /// <summary>
     /// Runs the same pipeline without throwing, so a specification that has to be refused can be
     /// asserted on: the diagnostics say why, and no sources are produced.
     /// </summary>

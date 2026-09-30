@@ -1,0 +1,5 @@
+# Shell scripts are run by bash on the CI runners, and a carriage return in a script is not a formatting
+# detail: `set -euo pipefail` fails with "invalid option name" and the step dies before it checks anything.
+# `core.autocrlf` keeps the blobs LF for most contributors, but it is a client-side setting, so the endings are
+# pinned here instead of left to whoever commits next.
+*.sh text eol=lf

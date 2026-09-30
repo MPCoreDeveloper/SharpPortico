@@ -34,29 +34,32 @@ public class FreeFormObjectTests
             Spec("payloads:\n          type: array\n          items: { type: object, additionalProperties: true }"),
             serviceName: "FreeFormService");
 
+        // The declaration, not just the type name: a double-wrapped RepeatedField<RepeatedField<...>> also
+        // contains the type name, and it is not what a consumer can use.
         Assert.Contains(
-            "RepeatedField<global::Google.Protobuf.WellKnownTypes.Struct>",
+            "public global::Google.Protobuf.Collections.RepeatedField<global::Google.Protobuf.WellKnownTypes.Struct> Payloads { get; } = new();",
             result.GeneratedSource,
             StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// The descriptor names the well-known type.
+    /// The descriptor names the well-known type and imports the file that declares it.
     /// </summary>
     /// <remarks>
-    /// The import is <em>not</em> asserted here because it is not emitted: a .proto that names `google.protobuf.Struct`
-    /// or `google.protobuf.Timestamp` without importing it does not compile, and that gap predates this mapping - it is
-    /// recorded in the changelog rather than papered over by a test that would pass while the file is wrong.
+    /// Naming `google.protobuf.Struct` without importing `google/protobuf/struct.proto` produces a .proto that
+    /// protoc refuses, so the import is part of what this mapping owes the contract rather than a detail of the
+    /// text. <see cref="ProtoImportTests"/> asserts the same thing on the unescaped descriptor.
     /// </remarks>
     [Fact]
-    public void The_Descriptor_Names_The_Well_Known_Type()
+    public void The_Descriptor_Names_And_Imports_The_Well_Known_Type()
     {
         var result = GeneratorTestDriver.Run(Spec("payload: { type: object, additionalProperties: true }"), serviceName: "FreeFormService");
 
-        // The descriptor travels as one escaped C# constant; the type name is what this asserts.
+        // The descriptor travels as one escaped C# constant; the type name and its import are what this asserts.
         var descriptor = result.Sources.First(pair => pair.Key.EndsWith(".proto.cs", StringComparison.Ordinal)).Value;
 
         Assert.Contains("google.protobuf.Struct", descriptor, StringComparison.Ordinal);
+        Assert.Contains("google/protobuf/struct.proto", descriptor, StringComparison.Ordinal);
     }
 
     /// <summary>The emitted text of one generated class, up to the next class declaration.</summary>

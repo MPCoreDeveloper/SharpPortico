@@ -173,7 +173,8 @@ public class MappingScenarioTests
         Assert.Contains("CreateBearerTokenMetadata", result.GeneratedSource);
         Assert.Contains("CreateApiKeyMetadata", result.GeneratedSource);
         Assert.Contains("CreateOAuth2Metadata", result.GeneratedSource);
-        Assert.Contains("X-API-Key", result.GeneratedSource);
+        // gRPC metadata keys are lowercase, so the contract's own spelling is not what the header carries.
+        Assert.Contains("x-api-key", result.GeneratedSource);
     }
 
     [Fact]

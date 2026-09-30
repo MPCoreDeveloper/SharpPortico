@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      The product's central claim is that the generated code is reflection-free. A claim about reflection is
+      only settled by a publish that removes it: this sample is compiled ahead of time, so a call that works
+      because something was reflected over fails here rather than in a consumer's release pipeline. The
+      runtimes the product ships on are the runtimes this is built on; CI publishes net10.0, where the AOT
+      toolchain is released and not a release candidate.
+    -->
+    <TargetFrameworks>$(SharpPorticoNetTargetFrameworks)</TargetFrameworks>
+    <RootNamespace>SharpPortico.Samples.NativeAotExample</RootNamespace>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <PublishAot>true</PublishAot>
+    <!-- An AOT binary carries no ICU by default; the sample wants nothing from it. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <SharpPorticoGeneratorOutDir>$(MSBuildThisFileDirectory)..\..\src\SharpPortico.SourceGenerator\bin\$(Configuration)\$(SharpPorticoGeneratorTargetFramework)\</SharpPorticoGeneratorOutDir>
+  </PropertyGroup>
+
+  <!-- The [OpenApiToGrpc] attribute comes from SharpPortico.Abstractions -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SharpPortico.Abstractions\SharpPortico.Abstractions.csproj" />
+  </ItemGroup>
+
+  <!--
+    Reference the source generator as an analyzer. The Microsoft.OpenApi assemblies are
+    ALSO registered as analyzers so the Roslyn compiler host can resolve the parser types
+    the generator needs (this mirrors NuGet's automatic handling of files under analyzers/dotnet/cs).
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SharpPortico.SourceGenerator\SharpPortico.SourceGenerator.csproj"
+                      ReferenceOutputAssembly="false"
+                      OutputItemType="Analyzer"
+                      PrivateAssets="all" />
+    <Analyzer Include="$(SharpPorticoGeneratorOutDir)Microsoft.OpenApi.dll" />
+    <Analyzer Include="$(SharpPorticoGeneratorOutDir)Microsoft.OpenApi.Readers.dll" />
+    <Analyzer Include="$(SharpPorticoGeneratorOutDir)SharpYaml.dll" />
+    <Analyzer Include="$(SharpPorticoGeneratorOutDir)SharpPortico.Abstractions.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.Core.Api" />
+    <PackageReference Include="Grpc.Core" />
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="openapi/**/*.yaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Generated/**/*.cs" />
+    <None Include="Generated/**/*.cs" />
+  </ItemGroup>
+
+</Project>

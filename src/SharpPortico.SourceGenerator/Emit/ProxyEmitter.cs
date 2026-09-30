@@ -191,7 +191,14 @@ internal static class ProxyEmitter
             var first = true;
             foreach (var f in msg.Fields)
             {
-                w.Line($"if (!{first.ToString().ToLowerInvariant()}) sb.Append(',');");
+                // The first field needs no separator, and that is a fact about the contract rather than a
+                // runtime condition. Emitting `if (!true) ...` instead would put unreachable code - and a
+                // CS0162 warning in every consumer's build, which is an error under TreatWarningsAsErrors.
+                if (!first)
+                {
+                    w.Line("sb.Append(',');");
+                }
+
                 w.Line($"sb.Append(\"\\\"{f.ProtoName}\\\":\");");
                 EmitFieldAppend(w, f);
                 first = false;

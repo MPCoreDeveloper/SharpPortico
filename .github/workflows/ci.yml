@@ -40,9 +40,92 @@ jobs:
       - name: Build samples
         run: |
           dotnet build samples/GrpcServerExample/GrpcServerExample.csproj -c Release --no-restore
+          dotnet build samples/LegacyProxyExample/LegacyProxyExample.csproj -c Release --no-restore
           dotnet build samples/MinimalApiExample/MinimalApiExample.csproj -c Release --no-restore
+          dotnet build samples/NativeAotExample/NativeAotExample.csproj -c Release --no-restore
+
+      # The generator emits the descriptor as a string const and no compiler ever reads it, so a descriptor
+      # that stops being valid protobuf builds green and fails for whoever hands {Service}Proto.Text to protoc,
+      # to a client generator or to a reviewer. The CLI writes that same descriptor for every sample spec, and
+      # this asks protoc's opinion of each one - the import of google/protobuf/struct.proto was one such
+      # defect, and it is invisible to the C# compiler.
+      - name: Every sample's descriptor compiles with protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev
+
+          cli=$(find src/SharpPortico.Cli/bin/Release/net10.0 -maxdepth 1 -name 'SharpPortico.Cli.dll' -print -quit)
+          test -n "$cli" || { echo 'the CLI was not built, so no descriptor can be inspected'; exit 1; }
+
+          bash ./.github/scripts/check-protos.sh "$cli" /usr/include
+
+      # The generated code is the product, so it is held to the standard a consumer holds it to. A warning inside
+      # a generated file is a defect the consumer cannot fix and, under TreatWarningsAsErrors, cannot even build
+      # past - which is the shape the `if (!true) sb.Append(',')` separator had. Emitting the sources to disk is
+      # what makes them inspectable here instead of only in a compiler's virtual file system.
+      - name: The generated code is warning-free on its own
+        run: |
+          dotnet build samples/LegacyProxyExample/LegacyProxyExample.csproj -c Release --no-restore --no-incremental \
+            -p:EmitCompilerGeneratedFiles=true 2>&1 | tee /tmp/generated.log
+
+          generated=$(find samples/LegacyProxyExample/obj -name 'petstore.g.cs' -print -quit)
+          test -n "$generated" || { echo 'the generator emitted no source to inspect'; exit 1; }
+
+          ! grep -nE 'CS0162|CS1587' /tmp/generated.log
+          ! grep -nE '!true|!false' "$generated"
+
+      # The version a reader is told to expect is the version that is built and published. Both had drifted
+      # (the README badge said 1.1.1 while the packages were 1.2.0-preview.1), so the numbers are checked.
+      - name: Documented version matches the packaged version
+        run: |
+          packaged=$(grep -oP '(?<=<SharpPorticoProductVersion>)[^<]+' Directory.Build.props)
+          echo "packaged version: $packaged"
+
+          grep -q "Current version: \*\*$packaged\*\*" docs/SharpPortico.md
+          grep -q "Version=\"$packaged\"" src/SharpPortico.SourceGenerator/README.md
+          grep -q "Version=\"$packaged\"" src/SharpPortico.Runtime/README.md
 
       # The tests and samples consume the generator as a project. This consumes the *package*, which is the
       # only path where NuGet's analyzers/-versus-lib rule applies - and the reason 1.0.0 shipped inert.
       - name: Consume the packed package the way a stranger does
         run: bash ./.github/scripts/consume-package.sh "$GITHUB_WORKSPACE/artifacts"
+
+  # The product's central claim is that the generated code is reflection-free, and a claim about reflection is
+  # only settled by a publish that removes it - then by running what the publish produced. This is the only job
+  # that runs a native image, and it runs on Windows because that is where the sample's native dependency
+  # (Grpc.Core's `grpc_csharp_ext`) is the one that has been verified end to end; the RID is the switch.
+  native-aot:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET (both supported runtimes)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.x
+            11.0.100-rc.1.26425.128
+
+      - name: The generated code survives a native image
+        run: |
+          dotnet publish samples/NativeAotExample/NativeAotExample.csproj -c Release -f net10.0 -r win-x64
+
+          $publish = 'samples/NativeAotExample/bin/Release/net10.0/win-x64/publish'
+          $exe = Join-Path $publish 'NativeAotExample.exe'
+          if (-not (Test-Path $exe)) { throw "the publish produced no native image at $exe" }
+
+          # A native image carries no managed copy of the app beside it. If the assembly is there, the publish
+          # above was framework-dependent and a run of it would prove nothing about reflection.
+          if (Test-Path (Join-Path $publish 'NativeAotExample.dll')) {
+            throw 'the publish left a managed app assembly behind, so there is no native image here'
+          }
+
+          # The smoke test serves the generated service over Grpc.Core, drives the generated client, and checks
+          # what it claims about every 3.1 construct the document declares. It exits non-zero when a check fails.
+          & $exe 2>&1 | Tee-Object -FilePath aot-run.log
+          $exit = $LASTEXITCODE
+          if ($exit -ne 0) { throw "the native image exited $exit`n$(Get-Content aot-run.log -Raw)" }
+
+          if (-not (Select-String -Path aot-run.log -Pattern 'SMOKE TEST PASSED' -Quiet)) {
+            throw "the native image did not report a passing smoke test`n$(Get-Content aot-run.log -Raw)"
+          }

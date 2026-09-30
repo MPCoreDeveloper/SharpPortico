@@ -237,7 +237,7 @@ internal static class MessageEmitter
                 }
                 else if (f.Kind == FieldKind.Message)
                 {
-                    w.Line($"if (other.{f.Name} is not null) {{ if ({f.Name} is null) {f.Name} = new {f.TypeName}(); {f.Name}.MergeFrom(other.{f.Name}); }}");
+                    w.Line($"if (other.{f.Name} is not null) {{ if ({f.Name} is null) {f.Name} = new {FieldPropertyType(f)}(); {f.Name}.MergeFrom(other.{f.Name}); }}");
                 }
                 else if (f.Kind == FieldKind.String)
                 {
@@ -311,7 +311,7 @@ internal static class MessageEmitter
         }
         else if (f.Kind == FieldKind.Message)
         {
-            w.Line($"if ({f.Name} is null) {f.Name} = new {f.TypeName}();");
+            w.Line($"if ({f.Name} is null) {f.Name} = new {FieldPropertyType(f)}();");
             w.Line($"input.ReadMessage({f.Name});");
         }
         else if (f.Kind == FieldKind.Enum)
@@ -382,7 +382,7 @@ internal static class MessageEmitter
             if (!f.IsRepeated) continue;
             if (f.Kind == FieldKind.Message)
             {
-                w.Line($"private static readonly global::Google.Protobuf.FieldCodec<{f.TypeName}> _repeated_{f.Name}_codec = global::Google.Protobuf.FieldCodec.ForMessage({ConstTag(f)}, {f.TypeName}.Parser);");
+                w.Line($"private static readonly global::Google.Protobuf.FieldCodec<{FieldPropertyType(f)}> _repeated_{f.Name}_codec = global::Google.Protobuf.FieldCodec.ForMessage({ConstTag(f)}, {FieldPropertyType(f)}.Parser);");
             }
             else if (f.Kind == FieldKind.Enum)
             {
@@ -424,25 +424,32 @@ internal static class MessageEmitter
 
     private static readonly System.Collections.Generic.Dictionary<string, string> WellKnownCsTypes = new()
     {
-        ["google.protobuf.Struct"] = "global::Google.Protobuf.WellKnownTypes.Struct"
+        ["google.protobuf.Struct"] = "global::Google.Protobuf.WellKnownTypes.Struct",
+        ["google.protobuf.Value"] = "global::Google.Protobuf.WellKnownTypes.Value"
     };
 
+    /// <summary>
+    /// The C# type of one value of a field: what a property, a comparator, a codec and a merge all name. A message
+    /// field's proto name is not its C# name when the field is a well-known type, because those are declared
+    /// outside every file this generator writes.
+    /// </summary>
     private static string FieldPropertyType(FieldModel f)
     {
-        // A well-known type is declared outside every file this generator writes, so its C# name is its own and is not
-        // the proto name the rest of the model carries.
-        if (f.Kind == FieldKind.Message && f.TypeName is { } wellKnown && WellKnownCsTypes.TryGetValue(wellKnown, out var wellKnownCs))
+        if (f.Kind == FieldKind.Message)
         {
-            return (f.IsRepeated ? "global::Google.Protobuf.Collections.RepeatedField<" : "") + wellKnownCs
-                + (f.IsRepeated ? ">" : "");
+            if (f.TypeName is { } protoName && WellKnownCsTypes.TryGetValue(protoName, out var wellKnownCs))
+            {
+                return wellKnownCs;
+            }
+
+            return f.TypeName ?? f.CsType;
         }
 
-        if (f.IsRepeated)
+        if (f.Kind == FieldKind.Enum)
         {
-            if (f.Kind == FieldKind.Message || f.Kind == FieldKind.Enum) return f.TypeName ?? "string";
-            return f.CsType;
+            return f.TypeName ?? "int";
         }
-        if (f.Kind == FieldKind.Message || f.Kind == FieldKind.Bytes) return f.TypeName ?? f.CsType;
+
         return f.CsType;
     }
 

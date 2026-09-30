@@ -26,6 +26,12 @@ internal sealed class SchemaMapper
     /// <summary>The C# type a free-form object maps to, which is protobuf's own.</summary>
     private const string StructCsType = "global::Google.Protobuf.WellKnownTypes.Struct";
 
+    /// <summary>The proto type an arbitrary JSON value maps to.</summary>
+    private const string JsonValueProtoType = "google.protobuf.Value";
+
+    /// <summary>The C# type an arbitrary JSON value maps to, which is protobuf's own.</summary>
+    private const string JsonValueCsType = "global::Google.Protobuf.WellKnownTypes.Value";
+
     private readonly OpenApiDocument _document;
     private readonly CancellationToken _ct;
     private readonly Dictionary<string, MessageModel> _messages = new(StringComparer.Ordinal);
@@ -318,6 +324,16 @@ internal sealed class SchemaMapper
 
     private static FieldModel? MapProperty(SchemaMapper owner, string name, OpenApiSchema schema, ref int fieldNo)
     {
+        // A schema that says "any JSON value" - a JSON Schema type union, or a hand-written marker - is the one
+        // thing protobuf has a type for, and it comes before every other reading of the schema: the marker is
+        // an explicit statement of intent, while a union may also carry properties for one of its branches,
+        // which no single protobuf field could hold anyway.
+        if (IsJsonValue(schema))
+        {
+            return new FieldModel(
+                SanitizePascal(name), ToProtoName(name), ++fieldNo, FieldKind.Message, JsonValueCsType, JsonValueProtoType);
+        }
+
         // $ref -> message or enum reference
         if (schema.Reference is not null)
         {
@@ -376,6 +392,15 @@ internal sealed class SchemaMapper
     {
         var items = schema.Items;
         var repeatedName = SanitizePascal(name);
+
+        // An array schema that says "any JSON value" repeats protobuf's type for one, which is what
+        // google.protobuf.ListValue is.
+        if (IsJsonValue(schema))
+        {
+            return new FieldModel(
+                repeatedName, ToProtoName(name), ++fieldNo, FieldKind.Message, JsonValueCsType, JsonValueProtoType, IsRepeated: true);
+        }
+
         if (items is null)
         {
             return new FieldModel(repeatedName, ToProtoName(name), ++fieldNo, FieldKind.String, StringFieldType, StringFieldType, IsRepeated: true);
@@ -387,6 +412,13 @@ internal sealed class SchemaMapper
                 && owner.ComponentSchemas.TryGetValue(items.Reference.Id, out var target)
                 && IsEnum(target);
             return new FieldModel(repeatedName, ToProtoName(name), ++fieldNo, isEnum ? FieldKind.Enum : FieldKind.Message, refName, refName, IsRepeated: true);
+        }
+
+        // The element is an arbitrary JSON value, which a tuple of mixed positions and a union element both are.
+        if (IsJsonValue(items))
+        {
+            return new FieldModel(
+                repeatedName, ToProtoName(name), ++fieldNo, FieldKind.Message, JsonValueCsType, JsonValueProtoType, IsRepeated: true);
         }
         if (items.Enum is { Count: > 0 })
         {
@@ -422,6 +454,29 @@ internal sealed class SchemaMapper
             return scalarRepeated with { IsRepeated = true };
         }
         return new FieldModel(repeatedName, ToProtoName(name), ++fieldNo, FieldKind.String, StringFieldType, StringFieldType, IsRepeated: true);
+    }
+
+    /// <summary>
+    /// True when a schema declares that it holds an arbitrary JSON value.
+    /// </summary>
+    /// <remarks>
+    /// A 3.1 type union and a tuple of mixed positions both describe a value no single protobuf type holds, and
+    /// <c>google.protobuf.Value</c> is protobuf's answer to that: a value that may be a number, a string, a
+    /// bool, a null, a list or an object. The downgrade pass writes this marker for those constructs, and a
+    /// document may set it by hand for a schema whose JSON type it cannot infer. An explicit <c>false</c>
+    /// turns the mapping off again, so the marker is a statement rather than a trap.
+    /// </remarks>
+    /// <param name="schema">The schema.</param>
+    /// <returns>Whether the schema is an arbitrary JSON value.</returns>
+    private static bool IsJsonValue(OpenApiSchema schema)
+    {
+        if (schema.Extensions is null
+            || !schema.Extensions.TryGetValue(OpenApi31Downgrade.JsonValueKeyword, out var marker))
+        {
+            return false;
+        }
+
+        return marker is not OpenApiBoolean flag || flag.Value;
     }
 
     private static FieldModel? MapScalarField(string name, OpenApiSchema schema, ref int fieldNo)

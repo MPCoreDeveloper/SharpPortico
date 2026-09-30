@@ -6,7 +6,8 @@ namespace SharpPortico.Generator.Emit;
 
 /// <summary>
 /// Emits gRPC contract (Method/Marshaller/ServiceBinderBase), nested low-level client,
-/// server base, C# 14 convenience client, DI extensions and auth metadata helpers.
+/// server base, C# 14 convenience client, DI extensions and auth metadata helpers plus the
+/// client interceptor that attaches them.
 /// All generated code is reflection-free and NativeAOT-safe.
 /// </summary>
 internal static class ServiceEmitter
@@ -22,6 +23,53 @@ internal static class ServiceEmitter
         if (item.EmitClient) EmitConvenienceClient(w, model, svc);
         if (item.EmitDependencyInjection) EmitDiExtensions(w, svc);
         if (item.GenerateAuthMetadataHelpers) EmitAuthHelpers(w, model, svc);
+        if (item.GenerateAuthInterceptors) EmitAuthInterceptor(w, model, svc);
+    }
+
+    /// <summary>A contract name as a gRPC metadata key. gRPC requires metadata keys to be lowercase.</summary>
+    private static string MetadataKey(string name) => name.ToLowerInvariant();
+
+    /// <summary>
+    /// The metadata entries the contract's security schemes call for: the key each credential travels under,
+    /// deduplicated across schemes, plus the C# expression that produces its value from a credential.
+    /// </summary>
+    private static System.Collections.Generic.List<(string Name, string Value)> AuthHeaders(GrpcModel model)
+    {
+        var headers = new System.Collections.Generic.List<(string Name, string Value)>();
+        var seen = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+
+        foreach (var scheme in model.AuthSchemes)
+        {
+            string name;
+            string value;
+
+            switch (scheme.Kind)
+            {
+                case AuthKind.Bearer:
+                case AuthKind.OAuth2:
+                    // Both kinds of token travel in the standard authorization header.
+                    name = "authorization";
+                    value = "\"Bearer \" + credential";
+                    break;
+                case AuthKind.ApiKey:
+                    // An apiKey scheme that travels in the query string has no header of its own, so its
+                    // parameter name is the only thing the metadata can be keyed by.
+                    name = scheme.HeaderName ?? scheme.QueryParameterName ?? scheme.Name;
+                    value = "credential";
+                    break;
+                default:
+                    name = scheme.Name;
+                    value = "credential";
+                    break;
+            }
+
+            if (name.Length > 0 && seen.Add(name))
+            {
+                headers.Add((MetadataKey(name), value));
+            }
+        }
+
+        return headers;
     }
 
     private static void EmitContractClass(CodeWriter w, GrpcModel model, ServiceModel svc)
@@ -292,7 +340,7 @@ internal static class ServiceEmitter
                         break;
                     case AuthKind.ApiKey:
                         w.Line("public static global::Grpc.Core.Metadata CreateApiKeyMetadata(string key)");
-                        w.Line($"    => new() {{ {{ \"{scheme.HeaderName ?? "x-api-key"}\", key }} }};");
+                        w.Line($"    => new() {{ {{ \"{MetadataKey(scheme.HeaderName ?? "x-api-key")}\", key }} }};");
                         break;
                     case AuthKind.OAuth2:
                         w.Line("public static global::Grpc.Core.Metadata CreateOAuth2Metadata(string accessToken)");
@@ -306,6 +354,96 @@ internal static class ServiceEmitter
             });
             w.Line();
         }
+    }
+
+    /// <summary>
+    /// Emits the client interceptor that attaches the contract's credentials to every outbound call.
+    /// </summary>
+    /// <remarks>
+    /// A metadata helper only works at a call site that remembers to pass its result. An interceptor attaches
+    /// the credential whatever the call site looks like, which is what <c>GenerateAuthInterceptors</c> promises,
+    /// and it is emitted whenever the contract declares a security scheme.
+    /// </remarks>
+    private static void EmitAuthInterceptor(CodeWriter w, GrpcModel model, ServiceModel svc)
+    {
+        var headers = AuthHeaders(model);
+        if (headers.Count == 0)
+        {
+            return;
+        }
+
+        // The doc comment has to precede the attribute: between an attribute and its declaration the compiler
+        // reports it as a stray XML comment (CS1587).
+        w.Line($"/// <summary>Attaches the auth metadata of the {svc.Name} contract to every outbound call.</summary>");
+        w.Line(GeneratedCodeAttribute);
+        w.Block($"public sealed class {svc.Name}AuthInterceptor : global::Grpc.Core.Interceptors.Interceptor", () =>
+        {
+            w.Line("private readonly global::System.Func<string?> _credentialFactory;");
+            w.Line();
+            w.Line("/// <summary>Creates the interceptor.</summary>");
+            w.Line("/// <param name=\"credentialFactory\">Supplies the credential for each call, so a rotated token is");
+            w.Line("/// picked up without rebuilding the interceptor. Returning null or the empty string sends the call");
+            w.Line("/// without credentials.</param>");
+            w.Line($"public {svc.Name}AuthInterceptor(global::System.Func<string?> credentialFactory)");
+            w.Line("    => _credentialFactory = credentialFactory ?? throw new global::System.ArgumentNullException(nameof(credentialFactory));");
+            w.Line();
+            // Every shape of call has to carry the credential, or the one call kind left out fails only for
+            // whoever happens to use it.
+            w.Line("/// <inheritdoc />");
+            w.Line("public override global::Grpc.Core.AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(");
+            w.Line("    TRequest request, global::Grpc.Core.Interceptors.ClientInterceptorContext<TRequest, TResponse> context, global::Grpc.Core.Interceptors.Interceptor.AsyncUnaryCallContinuation<TRequest, TResponse> continuation)");
+            w.Line("    => continuation(request, WithCredential(context));");
+            w.Line();
+            w.Line("/// <inheritdoc />");
+            w.Line("public override global::Grpc.Core.AsyncServerStreamingCall<TResponse> AsyncServerStreamingCall<TRequest, TResponse>(");
+            w.Line("    TRequest request, global::Grpc.Core.Interceptors.ClientInterceptorContext<TRequest, TResponse> context, global::Grpc.Core.Interceptors.Interceptor.AsyncServerStreamingCallContinuation<TRequest, TResponse> continuation)");
+            w.Line("    => continuation(request, WithCredential(context));");
+            w.Line();
+            w.Line("/// <inheritdoc />");
+            w.Line("public override global::Grpc.Core.AsyncClientStreamingCall<TRequest, TResponse> AsyncClientStreamingCall<TRequest, TResponse>(");
+            w.Line("    global::Grpc.Core.Interceptors.ClientInterceptorContext<TRequest, TResponse> context, global::Grpc.Core.Interceptors.Interceptor.AsyncClientStreamingCallContinuation<TRequest, TResponse> continuation)");
+            w.Line("    => continuation(WithCredential(context));");
+            w.Line();
+            w.Line("/// <inheritdoc />");
+            w.Line("public override global::Grpc.Core.AsyncDuplexStreamingCall<TRequest, TResponse> AsyncDuplexStreamingCall<TRequest, TResponse>(");
+            w.Line("    global::Grpc.Core.Interceptors.ClientInterceptorContext<TRequest, TResponse> context, global::Grpc.Core.Interceptors.Interceptor.AsyncDuplexStreamingCallContinuation<TRequest, TResponse> continuation)");
+            w.Line("    => continuation(WithCredential(context));");
+            w.Line();
+            w.Line("/// <inheritdoc />");
+            w.Line("public override TResponse BlockingUnaryCall<TRequest, TResponse>(");
+            w.Line("    TRequest request, global::Grpc.Core.Interceptors.ClientInterceptorContext<TRequest, TResponse> context, global::Grpc.Core.Interceptors.Interceptor.BlockingUnaryCallContinuation<TRequest, TResponse> continuation)");
+            w.Line("    => continuation(request, WithCredential(context));");
+            w.Line();
+            w.Line("/// <summary>Returns the call context with the contract's credentials attached.</summary>");
+            w.Line("/// <remarks>The caller's own metadata is copied rather than replaced, so per-call metadata survives.</remarks>");
+            w.Line("private global::Grpc.Core.Interceptors.ClientInterceptorContext<TRequest, TResponse> WithCredential<TRequest, TResponse>(");
+            w.Line("    global::Grpc.Core.Interceptors.ClientInterceptorContext<TRequest, TResponse> context)");
+            w.Line("    where TRequest : class");
+            w.Line("    where TResponse : class");
+            w.Line("{");
+            w.Open();
+            w.Line("var credential = _credentialFactory();");
+            w.Line("if (global::System.String.IsNullOrEmpty(credential)) return context;");
+            w.Line();
+            w.Line("var headers = new global::Grpc.Core.Metadata();");
+            w.Line("if (context.Options.Headers is not null)");
+            w.Line("{");
+            w.Open();
+            w.Line("foreach (var existing in context.Options.Headers) headers.Add(existing);");
+            w.Close();
+            w.Line("}");
+            w.Line();
+            foreach (var header in headers)
+            {
+                w.Line($"headers.Add(\"{header.Name}\", {header.Value});");
+            }
+            w.Line();
+            w.Line("return new global::Grpc.Core.Interceptors.ClientInterceptorContext<TRequest, TResponse>(");
+            w.Line("    context.Method, context.Host!, context.Options.WithHeaders(headers));");
+            w.Close();
+            w.Line("}");
+        });
+        w.Line();
     }
 
     private static void EmitCallMethods(CodeWriter w, ServiceModel svc)
