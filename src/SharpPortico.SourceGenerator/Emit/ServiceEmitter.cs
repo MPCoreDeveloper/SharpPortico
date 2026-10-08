@@ -495,25 +495,23 @@ internal static class ServiceEmitter
         return fields is { Length: 1 } ? fields[0] : null;
     }
 
-    private static string ElementType(FieldModel f)
-    {
-        if (f.IsRepeated)
-        {
-            var elem = f.Kind switch
-            {
-                FieldKind.Message => f.TypeName ?? "Google.Protobuf.IMessage",
-                FieldKind.Enum => f.TypeName ?? "int",
-                _ => f.CsType
-            };
-            return $"global::Google.Protobuf.Collections.RepeatedField<{elem}>";
-        }
-        return f.Kind switch
-        {
-            FieldKind.Message => f.TypeName ?? "Google.Protobuf.IMessage",
-            FieldKind.Enum => f.TypeName ?? "int",
-            _ => f.CsType
-        };
-    }
+    /// <summary>
+    /// The C# type a convenience overload hands back for a response's field: the field's own type, resolved exactly
+    /// as the message declaration resolves it.
+    /// </summary>
+    /// <remarks>
+    /// Resolved here as well until it was not: this used to name the *proto* type for a message or an enum field,
+    /// which is the same string as the C# type for every message this generator declares itself and a type that does
+    /// not exist for the ones it does not - so a free-form response emitted a convenience overload returning
+    /// `Task&lt;google.protobuf.Struct&gt;`, and the consumer's build failed on a generated file with `CS0246`.
+    /// A repeated field is handed back whole, as its property is declared.
+    /// </remarks>
+    /// <param name="f">The field.</param>
+    /// <returns>The C# type of it.</returns>
+    private static string ElementType(FieldModel f) =>
+        f.IsRepeated
+            ? $"global::Google.Protobuf.Collections.RepeatedField<{MessageEmitter.FieldPropertyType(f)}>"
+            : MessageEmitter.FieldPropertyType(f);
 
     private static string SingleParamName(FieldModel f)
         => char.ToLowerInvariant(f.Name[0]) + f.Name.Substring(1);

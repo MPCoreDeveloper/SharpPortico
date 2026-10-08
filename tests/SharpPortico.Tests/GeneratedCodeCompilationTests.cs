@@ -50,6 +50,32 @@ public class GeneratedCodeCompilationTests
     }
 
     [Fact]
+    public void A_Free_Form_Response_Compiles()
+    {
+        // A free-form answer is where the message declaration, the descriptor's import and the client's convenience
+        // overload all meet - and each of the three has named the proto type at some point, which is a type that
+        // exists in the descriptor and not in C#.
+        var result = GeneratorTestDriver.Run(
+            Spec(
+                "openapi: 3.0.3",
+                "info: { title: FreeForm, version: 1.0.0 }",
+                "paths:",
+                "  /things:",
+                "    get:",
+                "      operationId: GetThings",
+                "      responses:",
+                "        '200':",
+                "          description: ok",
+                "          content:",
+                "            application/json:",
+                "              schema: { type: object, additionalProperties: true }"),
+            serviceName: "FreeFormService");
+
+        Assert.Empty(result.Diagnostics);
+        Assert.Empty(GeneratedCodeCompiler.Errors(result.Sources.Values));
+    }
+
+    [Fact]
     public void A_Message_With_Two_Enum_Fields_Compiles()
     {
         // The deserialiser declares a local per enum field, so two enums in one message used to emit "var v"

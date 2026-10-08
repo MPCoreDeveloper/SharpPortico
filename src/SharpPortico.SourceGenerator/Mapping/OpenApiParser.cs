@@ -328,6 +328,13 @@ internal static class OpenApiParser
             return new FieldModel("Body", "body", paramIndex + 1, FieldKind.Message, refName, refName, false);
         }
 
+        // A body the contract declares as "any JSON object" is protobuf's own answer for one, exactly as a property
+        // of that shape maps to it.
+        if (SchemaMapper.MapArbitraryJson("Body", paramIndex + 1, bodySchema) is { } arbitraryBody)
+        {
+            return arbitraryBody;
+        }
+
         var nested = schemaMapper.MapSchemaToMessage(methodName + "Body", bodySchema, isRequest: false, isResponse: false);
         if (nested is null) return null;
         messages.Add(nested);
@@ -391,6 +398,14 @@ internal static class OpenApiParser
             return;
         }
 
+        // A response that declares "any JSON object" is protobuf's own answer for one, exactly as a property of that
+        // shape is: the same question, asked of the same schema, answered in one place.
+        if (SchemaMapper.MapArbitraryJson("Data", 1, schema) is { } arbitraryData)
+        {
+            responseFields.Add(arbitraryData);
+            return;
+        }
+
         var refName = SchemaMapper.ResolveSchemaName(schema);
         if (refName is not null)
         {
@@ -425,6 +440,14 @@ internal static class OpenApiParser
             return;
         }
         if (items is null) return;
+
+        // An element the contract declares as "any JSON object" repeats protobuf's own answer for one, exactly as a
+        // property of that shape maps to it.
+        if (SchemaMapper.MapArbitraryJson("Items", 1, items, repeated: true) is { } arbitraryItems)
+        {
+            responseFields.Add(arbitraryItems);
+            return;
+        }
 
         var elemName = SchemaMapper.InlineArrayElementName(responseSchema, methodName + "Item");
         var nested = schemaMapper.MapSchemaToMessage(elemName, items, isRequest: false, isResponse: true);

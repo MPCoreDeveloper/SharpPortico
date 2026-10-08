@@ -4,6 +4,34 @@ All notable changes to SharpPortico are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0-preview.2] - 2026-10-06
+
+### Fixed
+- **A response the contract declares free-form is a `Struct`, not a placeholder message.** `1.2.0-preview.1` mapped
+  `type: object` with `additionalProperties` - and a bare `{}` - to `google.protobuf.Struct` where the schema was a
+  *property*, and left the same question unanswered where it was a *response*, an array's element or a request body:
+  those positions built a message instead, and a message with no members is emitted as `bool has_value = 1`. So an
+  operation whose answer is a document the contract does not describe - a `GET` serving its own OpenAPI document,
+  declared free-form because describing an OpenAPI document inside itself is a self-reference - handed a consumer a
+  wrapper that carries a boolean and nothing else. The question is now asked in one place
+  (`SchemaMapper.MapArbitraryJson`) and answered the same way in each position: an arbitrary JSON value is
+  `google.protobuf.Value`, a free-form object is `google.protobuf.Struct`, and the descriptor imports
+  `google/protobuf/struct.proto` for a response exactly as it already did for a property. The tests assert the rule in
+  each position it binds, not only the one that was noticed first, and the C# and the descriptor are both checked -
+  the previous fix in this series was correct in one and not the other.
+- **The client's convenience overload names a C# type, not the proto type.** The `{Operation}{Field}Async` overload
+  that hands a response's single field back resolved that field's type a second time, and read its *proto* name for a
+  message or an enum: the same string as the C# type for every message this generator declares itself - which is why
+  it went unnoticed - and a type that does not exist for the ones it does not. Consuming the free-form response above
+  failed the consumer's build with `CS0246: The type or namespace name 'google' could not be found` inside the
+  generated file, from `Task<google.protobuf.Struct> GetOpenApiDataAsync(...)`. The overload now reads the same
+  resolution the property, the comparator, the codec and the merge paths read.
+
+### Changed
+- **The version is `1.3.0-preview.2`, and every document that names it names this one.** The three `dotnet tool
+  install` lines (`README.md`, `docs/SharpPortico.md`, and the CLI's own package readme), the developer guide's
+  current-version line and the two package readmes, which CI checks against `Directory.Build.props`.
+
 ## [1.3.0-preview.1] - 2026-09-30
 
 ### Changed

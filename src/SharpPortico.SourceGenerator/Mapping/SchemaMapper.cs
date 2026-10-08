@@ -275,6 +275,59 @@ internal sealed class SchemaMapper
             ? SanitizePascal(id)
             : SanitizePascal(fallbackBase) + "Item";
 
+    /// <summary>
+    /// True when a schema declares an object without declaring any of its members: <c>"any JSON object"</c>.
+    /// </summary>
+    /// <remarks>
+    /// A schema that names a component, declares members, composes, repeats or enumerates says something more
+    /// specific than "any object", so each of those is excluded rather than overridden: the only question here is
+    /// whether the contract said nothing about the object's shape. An absent <c>type</c> counts as an object, because
+    /// a bare <c>{}</c> is how a document declares one it does not describe - the original's own <c>/openapi.json</c>
+    /// answers exactly that.
+    /// </remarks>
+    /// <param name="schema">The schema.</param>
+    /// <returns>Whether the schema is a free-form object.</returns>
+    public static bool IsFreeFormObject(OpenApiSchema schema) =>
+        schema.Reference is null
+        && !IsEnum(schema)
+        && schema.Properties is not { Count: > 0 }
+        && schema.AllOf is not { Count: > 0 }
+        && schema.OneOf is not { Count: > 0 }
+        && schema.AnyOf is not { Count: > 0 }
+        && schema.Items is null
+        && (schema.Type == ObjectSchemaType || schema.Type is null);
+
+    /// <summary>
+    /// Maps a schema that says "any JSON" to protobuf's own type for one, or <see langword="null"/> when the schema
+    /// says something more specific.
+    /// </summary>
+    /// <remarks>
+    /// One question, answered in one place. A property, an array's element, a request body and a response are the
+    /// same question asked of a schema, and asking it separately in each position is what let a free-form object be
+    /// a <c>Struct</c> where it was a property and a placeholder message where it was an answer. Found by consuming
+    /// the package: an operation whose response the contract declares free-form - a <c>GET</c> that serves a document
+    /// it does not describe - came back with a wrapper whose only member was <c>has_value</c>, which is neither what
+    /// the contract said nor something a consumer can use.
+    /// </remarks>
+    /// <param name="name">The field's contract name.</param>
+    /// <param name="fieldNo">The field's number.</param>
+    /// <param name="schema">The schema.</param>
+    /// <param name="repeated">Whether the field repeats.</param>
+    /// <returns>The field, or <see langword="null"/> when the schema says more than "any JSON".</returns>
+    public static FieldModel? MapArbitraryJson(string name, int fieldNo, OpenApiSchema schema, bool repeated = false)
+    {
+        if (IsJsonValue(schema))
+        {
+            return new FieldModel(
+                SanitizePascal(name), ToProtoName(name), fieldNo, FieldKind.Message, JsonValueCsType, JsonValueProtoType, repeated);
+        }
+
+        return IsFreeFormObject(schema)
+            ? new FieldModel(
+                SanitizePascal(name), ToProtoName(name), fieldNo, FieldKind.Message, StructCsType, StructProtoType, repeated)
+            : null;
+    }
+
     // ---- internals ----
 
     private static int CountOwnDefinitions(OpenApiSchema schema)

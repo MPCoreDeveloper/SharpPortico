@@ -7,7 +7,7 @@
 A preview/validation tool that runs the generator's own mapping pipeline over your OpenAPI 3.0/3.1 spec (YAML or JSON) and reports what SharpPortico would generate — service name, namespace, proto package, RPC surface, protobuf message and enum counts — and, with `--out`, writes the `.proto` descriptor the generator embeds as `{Service}Proto.Text`. The actual C# code generation happens at compile time via the source generator.
 
 ```bash
-dotnet tool install -g SharpPortico.Cli --version 1.3.0-preview.1
+dotnet tool install -g SharpPortico.Cli --version 1.3.0-preview.2
 
 # What the mapping makes of the spec
 sharpportico generate openapi/petstore.yaml

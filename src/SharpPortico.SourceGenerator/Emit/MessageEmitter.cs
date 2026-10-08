@@ -433,7 +433,16 @@ internal static class MessageEmitter
     /// field's proto name is not its C# name when the field is a well-known type, because those are declared
     /// outside every file this generator writes.
     /// </summary>
-    private static string FieldPropertyType(FieldModel f)
+    /// <remarks>
+    /// The one place the question is answered. The client's convenience overloads used to work it out again and
+    /// named the proto type for a message or an enum field, which is the same string as the C# type for every
+    /// message this generator declares itself - and a type that does not exist for the ones it does not, so a
+    /// convenience overload over a free-form response emitted <c>Task&lt;google.protobuf.Struct&gt;</c> and the build
+    /// failed with <c>CS0246</c> inside a generated file.
+    /// </remarks>
+    /// <param name="f">The field.</param>
+    /// <returns>The C# type of one value of it.</returns>
+    internal static string FieldPropertyType(FieldModel f)
     {
         if (f.Kind == FieldKind.Message)
         {

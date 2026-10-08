@@ -13,7 +13,7 @@ Contains the runtime contracts and implementations the generated proxy code link
 - `IProxyAuditLogger` — per-call audit logging
 
 ```xml
-<PackageReference Include="SharpPortico.Runtime" Version="1.3.0-preview.1" />
+<PackageReference Include="SharpPortico.Runtime" Version="1.3.0-preview.2" />
 ```
 
 Reference this package in any project that hosts a generated `{Service}Proxy` (proxy mode).

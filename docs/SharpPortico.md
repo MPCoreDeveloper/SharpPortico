@@ -14,7 +14,7 @@ The optional **proxy mode** turns SharpPortico into a gRPC↔REST gateway: local
 | `SharpPortico.Runtime` | AOT-safe runtime helpers incl. the proxy pipeline (`IRestClient`, `IProxyCache`, `IKeyProvider`, `IClientKeyValidator`, audit) |
 | `SharpPortico.Cli` | `dotnet sharpportico generate` — spec preview/validation: what the mapping makes of a spec, and the `.proto` descriptor a build of it would embed |
 
-> All packages carry the SharpPortico logo icon and a short NuGet readme (see `src/*/README.md`). Current version: **1.3.0-preview.1**, defined once in `Directory.Build.props` (`SharpPorticoProductVersion`) — see [CHANGELOG](../CHANGELOG.md).
+> All packages carry the SharpPortico logo icon and a short NuGet readme (see `src/*/README.md`). Current version: **1.3.0-preview.2**, defined once in `Directory.Build.props` (`SharpPorticoProductVersion`) — see [CHANGELOG](../CHANGELOG.md).
 
 ---
 
@@ -178,7 +178,7 @@ dotnet run --project src/SharpPortico.Cli --framework net10.0 -- generate openap
 
 The descriptor comes from `ProtoEmitter`, the emitter the generator itself calls, and is LF-normalized exactly as the generated `{Service}Proto.Text` const holds it, so the file and a build of the same spec cannot disagree. The diagnostics are the generator's own, with the ids and messages the compiler reports. That makes the CLI a check as well as a preview: CI runs it over every sample spec and compiles each descriptor with `protoc` (`.github/scripts/check-protos.sh`), which is the only check for what the C# compiler never reads — a name `protoc` rejects, or an import left out of the descriptor.
 
-The `--framework` is only needed because the CLI multi-targets (`net10.0` / `net11.0`); `dotnet tool install -g SharpPortico.Cli --version 1.3.0-preview.1` gives you `sharpportico generate` without it. The version is pinned because a bare install resolves the last *stable* release, which predates the 3.1 mapping above.
+The `--framework` is only needed because the CLI multi-targets (`net10.0` / `net11.0`); `dotnet tool install -g SharpPortico.Cli --version 1.3.0-preview.2` gives you `sharpportico generate` without it. The version is pinned because a bare install resolves the last *stable* release, which predates the 3.1 mapping above.
 
 ---
 

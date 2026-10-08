@@ -171,7 +171,7 @@ SharpPortico/
 ## CLI
 
 ```bash
-dotnet tool install -g SharpPortico.Cli --version 1.3.0-preview.1
+dotnet tool install -g SharpPortico.Cli --version 1.3.0-preview.2
 
 # What the mapping makes of the spec: service, namespace, package, RPC surface, counts, diagnostics
 sharpportico generate openapi/petstore.yaml
