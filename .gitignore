@@ -21,6 +21,14 @@ out/
 *.swo
 *~
 
+# AI agent tooling. The skills CLI installs the same skill set once per editor, so the tree can pick
+# up .agents/, .claude/ and .continue/ from nothing but a tool install; none of the three, and no
+# captured build log, is an input to the generator, the CLI or either package.
+.agents/
+.claude/
+.continue/
+.full.txt
+
 # Test results
 TestResults/
 [Tt]est[Rr]esult*/
