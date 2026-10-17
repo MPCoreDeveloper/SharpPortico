@@ -14,7 +14,7 @@ The optional **proxy mode** turns SharpPortico into a gRPC↔REST gateway: local
 | `SharpPortico.Runtime` | AOT-safe runtime helpers incl. the proxy pipeline (`IRestClient`, `IProxyCache`, `IKeyProvider`, `IClientKeyValidator`, audit) |
 | `SharpPortico.Cli` | `dotnet sharpportico generate` — spec preview/validation: what the mapping makes of a spec, and the `.proto` descriptor a build of it would embed |
 
-> All packages carry the SharpPortico logo icon and a short NuGet readme (see `src/*/README.md`). Current version: **1.3.0-preview.2**, defined once in `Directory.Build.props` (`SharpPorticoProductVersion`) — see [CHANGELOG](../CHANGELOG.md).
+> All packages carry the SharpPortico logo icon and a short NuGet readme (see `src/*/README.md`). Current version: **1.4.0**, defined once in `Directory.Build.props` (`SharpPorticoProductVersion`) — see [CHANGELOG](../CHANGELOG.md). It is the first stable release since `1.1.1`: the whole `1.2`/`1.3` preview line is folded into it, so a bare `dotnet add package` — which resolves the newest *stable* version — now gives you the mapping described here.
 
 ---
 
@@ -166,6 +166,9 @@ A 3.1 document is rewritten to the 3.0 form the bundled parser reads before it i
 # What the mapping makes of the spec: service, namespace, package, RPC surface, message/enum counts, diagnostics
 dotnet run --project src/SharpPortico.Cli --framework net10.0 -- generate openapi/petstore.yaml
 
+# The same result as one document, for a CI job that must not parse text
+dotnet run --project src/SharpPortico.Cli --framework net10.0 -- generate openapi/petstore.yaml --format json
+
 # And the descriptor the generator would embed, as a file
 dotnet run --project src/SharpPortico.Cli --framework net10.0 -- generate openapi/petstore.yaml --out out/
 ```
@@ -175,10 +178,78 @@ dotnet run --project src/SharpPortico.Cli --framework net10.0 -- generate openap
 | `--out DIR\|FILE` | Write the descriptor — a directory gets `<spec>.proto` |
 | `--service-name NAME` | Base name of the generated service (`Service` is appended when absent; defaults to the spec's file name) |
 | `--namespace NS` | Namespace of the generated C#, as the declaration's third argument (defaults to the service name) |
+| `--format text\|json` | `text` (default) prints the summary; `json` prints one machine-readable document on stdout |
 
 The descriptor comes from `ProtoEmitter`, the emitter the generator itself calls, and is LF-normalized exactly as the generated `{Service}Proto.Text` const holds it, so the file and a build of the same spec cannot disagree. The diagnostics are the generator's own, with the ids and messages the compiler reports. That makes the CLI a check as well as a preview: CI runs it over every sample spec and compiles each descriptor with `protoc` (`.github/scripts/check-protos.sh`), which is the only check for what the C# compiler never reads — a name `protoc` rejects, or an import left out of the descriptor.
 
-The `--framework` is only needed because the CLI multi-targets (`net10.0` / `net11.0`); `dotnet tool install -g SharpPortico.Cli --version 1.3.0-preview.2` gives you `sharpportico generate` without it. The version is pinned because a bare install resolves the last *stable* release, which predates the 3.1 mapping above.
+The machine-readable format is a compatibility surface of its own: one JSON object on stdout, UTF-8 without a byte-order mark, two-space indentation, `\n` line endings and exactly one trailing newline, with `formatVersion` 1. Standard output holds that document and nothing else — diagnostics travel inside it with their id, severity and message — and a refused contract still produces one, with `severity: "error"` on the refusal and exit code 1, so a gate decides from the document alone. The same spec and options produce the same bytes on every run and every operating system; `tests/SharpPortico.Tests/openapi/petstore.report.json` pins the report and a Linux CI step regenerates and diffs it.
+
+The document has seven members; `service` and `descriptor` appear only when there is one to report:
+
+| Member | Meaning |
+| --- | --- |
+| `formatVersion` | The shape of the document. Bumped only when a reader would misread it; `1` today. |
+| `spec` | The path exactly as it was typed — resolved by nobody, so CI and a developer see their own spelling. |
+| `service` | `name`, `namespace` and `package` as a build would derive them. **Omitted when the contract was refused**, because no model means no identity to report, and inventing one from the command line would be a second copy of the defaults. |
+| `services` | Each mapped service with its `rpcs` (`name`, `httpMethod`, `path`, `kind`); empty when nothing was mapped. |
+| `counts` | `messages` and `enums` the descriptor declares — present as `0`/`0` on a refusal rather than omitted, so a reader never distinguishes "none" from "absent". |
+| `diagnostics` | Every diagnostic the generator reported: `id`, `severity` (`error` / `warning` / `info`), `message`, and `line` when a source tree is known. Today the generator supplies none, so the member is absent — an absent line, never line 0. |
+| `descriptor` | The `path` `--out` wrote, present only after it was written successfully, so a document never names a file that is not there. |
+
+```bash
+sharpportico generate openapi/petstore.yaml --format json
+```
+
+```json
+{
+  "formatVersion": 1,
+  "spec": "openapi/petstore.yaml",
+  "service": { "name": "PetstoreService", "namespace": "PetstoreService", "package": "petstoreservice" },
+  "services": [
+    { "name": "PetstoreService", "rpcs": [ { "name": "ListPets", "httpMethod": "GET", "path": "/pets", "kind": "Unary" } ] }
+  ],
+  "counts": { "messages": 7, "enums": 1 },
+  "diagnostics": []
+}
+```
+
+(One operation shown; the real document indents every member over its own lines and `services[0].rpcs` holds all
+three. The default encoder writes a single quote as `\u0027`, which is why a diagnostic message reads that way — the
+document is safe to paste into HTML, and a JSON reader sees the quote.)
+
+A refused contract is the case the format exists for — the process exits `1`, `service` is absent, and the reason is
+in the document rather than in a paragraph of text:
+
+```json
+{
+  "formatVersion": 1,
+  "spec": "openapi/search.yaml",
+  "services": [],
+  "counts": { "messages": 0, "enums": 0 },
+  "diagnostics": [
+    {
+      "id": "SP2005",
+      "severity": "error",
+      "message": "SharpPortico cannot map 'openapi/search.yaml': the message name 'SearchRequest' is produced twice ..."
+    }
+  ]
+}
+```
+
+A gate reads the exit code first and the document second, so a pipeline names the defect instead of only reporting
+that a step failed:
+
+```yaml
+- name: The contract still maps
+  run: sharpportico generate openapi/petstore.yaml --format json > report.json
+
+- name: Nothing in it is an error
+  run: |
+    jq -e '[.diagnostics[] | select(.severity == "error")] | length == 0' report.json
+    jq -e '.service.name == "PetstoreService"' report.json
+```
+
+The `--framework` is only needed because the CLI multi-targets (`net10.0` / `net11.0`); `dotnet tool install -g SharpPortico.Cli --version 1.4.0` gives you `sharpportico generate` without it. `1.4.0` is a stable release, so a bare install resolves this same build — the version is still pinned in this guide so that the guide and the package it explains cannot drift apart.
 
 ---
 

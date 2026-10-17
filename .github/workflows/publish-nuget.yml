@@ -60,6 +60,12 @@ jobs:
       - name: Consume the packed package the way a stranger does
         run: bash ./.github/scripts/consume-package.sh "$GITHUB_WORKSPACE/artifacts"
 
+      # Publishing is the last moment this can fail cheaply: the tool package is installed into a temporary
+      # tool path and run (text summary, --format json, and a refusal), so a feed entry that installs but
+      # answers nothing is caught here rather than by the first user.
+      - name: The packed tool installs and answers
+        run: bash ./.github/scripts/check-tool-package.sh "$GITHUB_WORKSPACE/artifacts"
+
       - name: Publish to NuGet.org
         shell: bash
         env:

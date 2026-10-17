@@ -25,6 +25,17 @@ jobs:
       - name: Build
         run: dotnet build SharpPortico.slnx -c Release --no-restore
 
+      # The document is a compatibility surface across operating systems: the golden file is produced on Windows
+      # and regenerated here, so a separator, an encoding or a newline that only holds on one of them fails the
+      # build instead of a consumer's pipeline.
+      - name: The JSON report is byte-identical on Linux
+        run: |
+          cli=$(find src/SharpPortico.Cli/bin/Release/net10.0 -maxdepth 1 -name 'SharpPortico.Cli.dll' -print -quit)
+          test -n "$cli" || { echo 'the CLI was not built, so the report cannot be regenerated'; exit 1; }
+
+          dotnet "$cli" generate tests/SharpPortico.Tests/openapi/petstore.yaml --format json > /tmp/petstore.report.json
+          diff -u tests/SharpPortico.Tests/openapi/petstore.report.json /tmp/petstore.report.json
+
       - name: Test
         run: dotnet test tests/SharpPortico.Tests/SharpPortico.Tests.csproj -c Release --no-restore
 
@@ -36,6 +47,12 @@ jobs:
 
       - name: Pack CLI (dotnet tool)
         run: dotnet pack src/SharpPortico.Cli/SharpPortico.Cli.csproj -c Release --no-restore
+
+      # A tool package is a different asset shape from the libraries: NuGet picks a tools/<tfm> folder by
+      # runtime, so a package can pack green and still not install or answer. The CLI tests run the project,
+      # never the package; this installs the packed tool and asks it the three questions a gate asks.
+      - name: The packed tool installs and answers
+        run: bash ./.github/scripts/check-tool-package.sh "$GITHUB_WORKSPACE/artifacts"
 
       - name: Build samples
         run: |
@@ -76,8 +93,8 @@ jobs:
 
       # The version a reader is told to expect is the version that is built and published. Both had drifted
       # (the README badge said 1.1.1 while the packages were 1.2.0-preview.1), so the numbers are checked - and the
-      # install lines with them: a bare `dotnet tool install` resolves the last stable release, not the preview the
-      # documentation describes.
+      # install lines with them, which pin the version so that a guide and the package it describes cannot drift
+      # apart. Since 1.4.0 the newest stable release is this one, so a bare install resolves it as well.
       - name: Documented version matches the packaged version
         run: |
           packaged=$(grep -oP '(?<=<SharpPorticoProductVersion>)[^<]+' Directory.Build.props)

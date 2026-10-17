@@ -3,7 +3,7 @@
 **Incremental Source Generator: OpenAPI 3.0/3.1 → gRPC + Protobuf + C# 14**
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-ff69b4)](https://github.com/sponsors/MPCoreDeveloper)
-[![NuGet](https://img.shields.io/nuget/vpre/SharpPortico.SourceGenerator)](https://www.nuget.org/packages/SharpPortico.SourceGenerator)
+[![NuGet](https://img.shields.io/nuget/v/SharpPortico.SourceGenerator)](https://www.nuget.org/packages/SharpPortico.SourceGenerator)
 [![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-blue)](/CHANGELOG.md)
 
 SharpPortico is a compile-time source generator that converts OpenAPI specifications (YAML or JSON) into production-quality gRPC services, protobuf messages, and modern C# 14 client/server code — zero reflection, NativeAOT-safe, fully AOT compatible. An optional **proxy mode** turns it into a gRPC↔REST gateway for legacy REST APIs.
@@ -21,6 +21,7 @@ Runs on **.NET 10 and .NET 11**. The generator itself is `netstandard2.0`, which
 - 🔁 **Proxy mode** — generated `{Service}Proxy : ServiceBase` forwards gRPC → legacy REST (X-Api-Key outbound, response cache with per-call bypass, ULID client keys, audit logging)
 - 🔐 **Auth mapped** — Bearer / API-Key / OAuth2 metadata helpers and interceptors
 - 🧠 **Smart mapping** — `$ref`, `allOf`, `oneOf`/`anyOf`, arrays → `repeated`, enums, pagination detection, streaming hints (`x-grpc-streaming`), octet-stream → `bytes`
+- 🧾 **A CLI that answers a gate** — `sharpportico generate spec.yaml --format json` prints one deterministic document (service identity, RPC surface, counts, every diagnostic) and still exits `1` on a refusal, so a pipeline branches on the exit code instead of parsing text
 - 🛠️ **Two declaration styles** — `<AdditionalFiles>` and/or `[OpenApiToGrpc]` assembly attributes
 
 ## Architecture
@@ -171,10 +172,13 @@ SharpPortico/
 ## CLI
 
 ```bash
-dotnet tool install -g SharpPortico.Cli --version 1.3.0-preview.2
+dotnet tool install -g SharpPortico.Cli --version 1.4.0
 
 # What the mapping makes of the spec: service, namespace, package, RPC surface, counts, diagnostics
 sharpportico generate openapi/petstore.yaml
+
+# The same answer as one document, for a CI job that must not parse text
+sharpportico generate openapi/petstore.yaml --format json
 
 # And the descriptor a build of it would ship
 sharpportico generate openapi/petstore.yaml --out out/
@@ -185,6 +189,21 @@ The descriptor comes from the emitter the generator itself calls and is LF-norma
 worth handing to `protoc`, to a client generator or to a reviewer. The C# compiler never reads that descriptor, so CI
 compiles every sample's with `protoc` (`.github/scripts/check-protos.sh`): a name `protoc` rejects, or an import left
 out of the file, is otherwise a build that stays green.
+
+`--format json` puts one document on stdout and nothing else — `formatVersion`, the spec path as given, the service
+identity, the RPC surface, the counts and every diagnostic with its id, severity and message. A refused contract still
+produces the document and still exits `1`, so the exit code is the first gate and the document is the second:
+
+```bash
+sharpportico generate openapi/petstore.yaml --format json > report.json
+jq -e '[.diagnostics[] | select(.severity == "error")] | length == 0' report.json
+```
+
+The bytes are deterministic — UTF-8 without a byte-order mark, `\n` line endings, one trailing newline — and identical
+between runs and between operating systems, which is what makes the format worth diffing.
+`tests/SharpPortico.Tests/openapi/petstore.report.json` pins it and a Linux CI step regenerates and diffs it. The
+[developer guide](docs/SharpPortico.md#5-cli) lists every member and shows a refusal.
+
 
 ## JavaPortico
 

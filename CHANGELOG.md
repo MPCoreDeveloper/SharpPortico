@@ -4,6 +4,45 @@ All notable changes to SharpPortico are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.4.0] - 2026-10-17
+
+### Added
+- **`sharpportico generate --format json` answers a CI job in one document.** The command already computed
+  everything a gate needs — the mapped model and the generator's own diagnostics — and printed it as aligned text
+  for a person. `--format json` projects that same result into a single object on stdout: `formatVersion`, the spec
+  path as it was typed, the service identity, the RPC surface, the message and enum counts, and every diagnostic
+  with its id, severity and message. A refused contract still produces the document — the refusal arrives as a
+  diagnostic with `severity: "error"` — and the exit code stays 1, so a gate decides from the document alone
+  instead of parsing text, and no diagnostic is lost on the way. The document is UTF-8 without a byte-order mark,
+  uses `\n` line endings and exactly one trailing newline, and is byte-identical between runs and between operating
+  systems: `tests/SharpPortico.Tests/openapi/petstore.report.json` pins it and a Linux CI step regenerates and
+  diffs it. `--format text` is the default and its output is unchanged, byte for byte, pinned by
+  `tests/SharpPortico.Tests/openapi/petstore.report.txt`; exit codes and option meanings are unchanged, and in JSON
+  mode standard output holds the document and nothing else.
+
+### Changed
+- **The version is `1.4.0` — stable, and the first stable release since `1.1.1`.** A new capability in a
+  published tool is a minor release, and the number also keeps the release honest: `publish-nuget.yml` runs on a push
+  to `main` that touches `src/**`, so leaving the version at `1.3.0-preview.2` would have re-pushed three packages
+  NuGet already has, `--skip-duplicate` would have turned every push into a no-op, and the feature would never have
+  reached the feed.
+- **The prerelease suffix is gone, because it was costing more than it bought.** `dotnet tool install` and `dotnet
+  add package` resolve the newest *stable* version unless they are told otherwise, and the newest stable was `1.1.1` —
+  a build from before the OpenAPI 3.1 mapping, the free-form `Struct` fix and this document. Every reader who did not
+  pin a version got the old product, which is exactly why every install line in this repository pins one. `1.4.0`
+  folds the whole `1.2`/`1.3` preview line into the release a bare install now finds; if you are coming from `1.1.1`,
+  the entries below describe what changed in between. The generator and the runtime are unchanged, but all three
+  packages ship one version. The three `dotnet tool install` lines (`README.md`, `docs/SharpPortico.md`, the CLI's own
+  package readme), the developer guide's current-version line and the two package readmes carry the new number, the
+  README badge now reads the stable feed, and CI checks each of them against `Directory.Build.props`.
+- **The packed tool is installed and run before it is published.** `dotnet pack` proved that a `.nupkg` exists, not
+  that NuGet can install it or that the installed copy answers `--format json`; the CLI tests run the project, not the
+  package. `.github/scripts/check-tool-package.sh` installs the packed tool into a temporary tool path and asks it the
+  questions this release claims - the text summary, the document and a refusal that produces a document and exit code
+  1 - and both CI and the publish workflow run it, so a package that installs but does not work fails before the feed.
+
 ## [1.3.0-preview.2] - 2026-10-06
 
 ### Fixed
