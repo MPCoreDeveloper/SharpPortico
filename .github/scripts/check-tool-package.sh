@@ -9,7 +9,10 @@
 # release reaches the feed before anyone notices.
 #
 # So: install into a temporary tool path, run the text summary, run the document with --out, and run a
-# contract that must be refused - the three answers a gate uses. A mismatch exits non-zero.
+# contract that must be refused - the three answers a gate uses. Then do it again for each framework the package
+# carries (tools/net10.0 and tools/net11.0): `dotnet tool install` picks one of them, so the other folder would
+# never execute and a net10 build that installs but does not start could ship behind a green check. A mismatch
+# exits non-zero.
 #
 # Usage: check-tool-package.sh <artifacts-directory>
 set -euo pipefail
@@ -210,3 +213,44 @@ print(f"      refusal: {errors[0]['id']}")
 PY
 
 echo "The packed tool installs, summarises, reports and refuses: $version"
+
+# 4. Both frameworks the package carries. The CLI ships tools/net10.0/any and tools/net11.0/any, and the install
+#    above resolved one of them; the other folder would never run. Each is installed by name and asked the
+#    question that needs no parsing: does it read a contract and name the service?
+for framework in net10.0 net11.0; do
+  path="tool-$framework"
+  if ! dotnet tool install SharpPortico.Cli \
+    --tool-path "$path" \
+    --add-source "$artifacts" \
+    --version "$version" \
+    --framework "$framework" \
+    --ignore-failed-sources > "install-$framework.log" 2>&1; then
+    echo "The packed tool does not install for $framework" >&2
+    cat "install-$framework.log" >&2
+    exit 1
+  fi
+
+  exe="./$path/sharpportico"
+  [ -x "$exe" ] || exe="./$path/sharpportico.exe"
+  if [ ! -x "$exe" ]; then
+    echo "The $framework install produced no executable in $work/$path" >&2
+    ls -l "$path" >&2
+    exit 1
+  fi
+
+  framework_status=0
+  "$exe" generate probe.yaml > "summary-$framework.txt" 2> "summary-$framework.err" || framework_status=$?
+  if [ "$framework_status" -ne 0 ] || [ -s "summary-$framework.err" ]; then
+    echo "The $framework build failed (exit $framework_status)" >&2
+    cat "summary-$framework.txt" "summary-$framework.err" >&2
+    exit 1
+  fi
+  if ! grep -qxF 'service:    ProbeService' "summary-$framework.txt"; then
+    echo "The $framework build does not name the service" >&2
+    cat "summary-$framework.txt" >&2
+    exit 1
+  fi
+  echo "  $framework answers"
+done
+
+echo "The packed tool installs and answers on net10.0 and net11.0: $version"

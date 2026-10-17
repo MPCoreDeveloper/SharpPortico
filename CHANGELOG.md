@@ -42,6 +42,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   package. `.github/scripts/check-tool-package.sh` installs the packed tool into a temporary tool path and asks it the
   questions this release claims - the text summary, the document and a refusal that produces a document and exit code
   1 - and both CI and the publish workflow run it, so a package that installs but does not work fails before the feed.
+  It then installs each framework the package carries, `tools/net10.0` and `tools/net11.0`, by name and runs it: an
+  install resolves one of the two folders and the other would never execute, so "ships on .NET 10 and .NET 11" is now
+  a claim this repository checks from the package instead of a claim about the project files.
+- **A rejected API key now says so.** The publish step reads the response instead of letting `set -e` swallow it, and
+  on a 403 emits an annotation naming the secret to renew and the command that renews it. A 403 on the
+  `1.3.0-preview.2` push went unnoticed for nine days because the run failed quietly and the feed simply did not move.
 
 ## [1.3.0-preview.2] - 2026-10-06
 
