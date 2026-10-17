@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **A 3.1 document whose declared version exceeds the rewrite's match budget is refused by the reader, not by an
+  exception out of the generator.** The two patterns that recognise the declaration are anchored and linear, so no
+  real document comes near the two-second timeout they now carry; the timeout exists because a regular expression
+  without one is a denial-of-service surface, and this one runs inside a consumer's build. A timeout falls through to
+  the path a 3.1 document already took before the tree rewrite: the reader reports that it cannot read the version.
+  The rest of this change is internal — the analyzer findings that held the SonarCloud gate at ERROR (one bug, two
+  vulnerabilities, and the code smells that came with them) are cleared, and no generated code, `.proto` or CLI
+  output changes.
+
 ## [1.4.0] - 2026-10-17
 
 ### Added
