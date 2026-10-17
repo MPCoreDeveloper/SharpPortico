@@ -76,6 +76,14 @@ jobs:
             echo '::error title=Missing secret::NUGET_API_KEY is not set, so nothing can be published.'
             exit 1
           fi
+          # nuget.org answers 403 for a key that is correct except for a stray newline, and the log masks the value
+          # so it cannot be read. Report the shape instead: a newline pasted into `gh secret set` is invisible in the
+          # secret's metadata and turns every push into the same 403 as an expired key.
+          echo "::notice::NUGET_API_KEY is ${#NUGET_API_KEY} characters"
+          if printf '%s' "$NUGET_API_KEY" | grep -q '[[:space:]]'; then
+            echo '::error title=The secret carries whitespace::NUGET_API_KEY contains a space or a line break, which nuget.org rejects as an invalid key. Store it without a trailing newline: gh secret set NUGET_API_KEY --body "<key>"'
+            exit 1
+          fi
 
       # A 403 from nuget.org is about the key, not the package - it stopped the 1.3.0-preview.2 release without
       # anyone noticing the feed had stopped moving. Print the response and, on 403, name the secret to renew.
