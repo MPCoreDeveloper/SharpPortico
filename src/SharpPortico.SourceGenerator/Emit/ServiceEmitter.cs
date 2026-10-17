@@ -15,6 +15,9 @@ internal static class ServiceEmitter
     private const string GeneratedCodeAttribute =
         "[global::System.CodeDom.Compiler.GeneratedCode(\"SharpPortico\", \"1.0.0\")]";
 
+    /// <summary>The documentation comment an override carries instead of repeating the contract's.</summary>
+    private const string InheritDoc = "/// <inheritdoc />";
+
     public static void Emit(CodeWriter w, GrpcModel model, OpenApiWorkItem item)
     {
         var svc = model.Services[0];
@@ -389,27 +392,27 @@ internal static class ServiceEmitter
             w.Line();
             // Every shape of call has to carry the credential, or the one call kind left out fails only for
             // whoever happens to use it.
-            w.Line("/// <inheritdoc />");
+            w.Line(InheritDoc);
             w.Line("public override global::Grpc.Core.AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(");
             w.Line("    TRequest request, global::Grpc.Core.Interceptors.ClientInterceptorContext<TRequest, TResponse> context, global::Grpc.Core.Interceptors.Interceptor.AsyncUnaryCallContinuation<TRequest, TResponse> continuation)");
             w.Line("    => continuation(request, WithCredential(context));");
             w.Line();
-            w.Line("/// <inheritdoc />");
+            w.Line(InheritDoc);
             w.Line("public override global::Grpc.Core.AsyncServerStreamingCall<TResponse> AsyncServerStreamingCall<TRequest, TResponse>(");
             w.Line("    TRequest request, global::Grpc.Core.Interceptors.ClientInterceptorContext<TRequest, TResponse> context, global::Grpc.Core.Interceptors.Interceptor.AsyncServerStreamingCallContinuation<TRequest, TResponse> continuation)");
             w.Line("    => continuation(request, WithCredential(context));");
             w.Line();
-            w.Line("/// <inheritdoc />");
+            w.Line(InheritDoc);
             w.Line("public override global::Grpc.Core.AsyncClientStreamingCall<TRequest, TResponse> AsyncClientStreamingCall<TRequest, TResponse>(");
             w.Line("    global::Grpc.Core.Interceptors.ClientInterceptorContext<TRequest, TResponse> context, global::Grpc.Core.Interceptors.Interceptor.AsyncClientStreamingCallContinuation<TRequest, TResponse> continuation)");
             w.Line("    => continuation(WithCredential(context));");
             w.Line();
-            w.Line("/// <inheritdoc />");
+            w.Line(InheritDoc);
             w.Line("public override global::Grpc.Core.AsyncDuplexStreamingCall<TRequest, TResponse> AsyncDuplexStreamingCall<TRequest, TResponse>(");
             w.Line("    global::Grpc.Core.Interceptors.ClientInterceptorContext<TRequest, TResponse> context, global::Grpc.Core.Interceptors.Interceptor.AsyncDuplexStreamingCallContinuation<TRequest, TResponse> continuation)");
             w.Line("    => continuation(WithCredential(context));");
             w.Line();
-            w.Line("/// <inheritdoc />");
+            w.Line(InheritDoc);
             w.Line("public override TResponse BlockingUnaryCall<TRequest, TResponse>(");
             w.Line("    TRequest request, global::Grpc.Core.Interceptors.ClientInterceptorContext<TRequest, TResponse> context, global::Grpc.Core.Interceptors.Interceptor.BlockingUnaryCallContinuation<TRequest, TResponse> continuation)");
             w.Line("    => continuation(request, WithCredential(context));");

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using SharpPortico.Generator.Model;
@@ -48,15 +49,45 @@ internal static class OpenApi31Downgrade
     /// <summary>The version a 3.1 document is declared as, so the 1.6.x reader accepts it.</summary>
     private const string DowngradedVersion = "3.0.3";
 
+    /// <summary>The 3.1 keyword holding a schema's single allowed value.</summary>
+    private const string ConstKeyword = "const";
+
+    /// <summary>The 3.1 keyword holding an array's element schema.</summary>
+    private const string ItemsKeyword = "items";
+
+    /// <summary>The 3.1 keyword holding a tuple's per-position schemas.</summary>
+    private const string PrefixItemsKeyword = "prefixItems";
+
+    /// <summary>The 3.1 keyword holding the operations the API calls on the consumer.</summary>
+    private const string WebhooksKeyword = "webhooks";
+
+    /// <summary>The separator a JSON pointer puts between a route and the key below it.</summary>
+    /// <remarks>A character rather than a string, so a route is not mistaken for a filesystem path.</remarks>
+    private const char RouteSeparator = '/';
+
+    /// <summary>
+    /// How long a declared-version match may take.
+    /// </summary>
+    /// <remarks>
+    /// Both patterns are anchored per line and linear, so a real document never comes close to this. The budget
+    /// is here because a regular expression without one is a denial-of-service surface, however unlikely the
+    /// input, and this one runs inside a stranger's build. A document that exceeds it is treated as one the
+    /// rewrite cannot read, which leaves the reader's own refusal as the answer instead of an exception out of
+    /// a source generator.
+    /// </remarks>
+    private static readonly TimeSpan DeclaredVersionTimeout = TimeSpan.FromSeconds(2);
+
     /// <summary>A 3.1 document's declared version, in YAML (block) or JSON (flow) notation.</summary>
     private static readonly Regex Declared31Yaml = new(
         @"(?m)^(?<head>\s*openapi\s*:\s*[""']?)3\.1(?:\.\d+)?(?<tail>[""']?\s*)$",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled,
+        DeclaredVersionTimeout);
 
     /// <summary>The same declaration written as JSON, where the key and the version are quoted.</summary>
     private static readonly Regex Declared31Json = new(
         @"(?m)(?<head>""openapi""\s*:\s*"")3\.1(?:\.\d+)?(?<tail>"")",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled,
+        DeclaredVersionTimeout);
 
     /// <summary>
     /// Keys whose values are data rather than a schema, so a schema rewrite never reaches them: an
@@ -65,7 +96,7 @@ internal static class OpenApi31Downgrade
     /// </summary>
     private static readonly HashSet<string> DataKeywords = new(StringComparer.Ordinal)
     {
-        "example", "examples", "default", "enum", "const",
+        "example", "examples", "default", "enum", ConstKeyword,
     };
 
     /// <summary>
@@ -80,7 +111,7 @@ internal static class OpenApi31Downgrade
     /// <summary>Keys whose value is a schema, or - for the composition keys - a list of schemas.</summary>
     private static readonly HashSet<string> SchemaValuedKeywords = new(StringComparer.Ordinal)
     {
-        "schema", "items", "prefixItems", "additionalProperties", "additionalItems", "unevaluatedProperties",
+        "schema", ItemsKeyword, PrefixItemsKeyword, "additionalProperties", "additionalItems", "unevaluatedProperties",
         "unevaluatedItems", "propertyNames", "contains", "contentSchema", "not", "if", "then", "else",
         "allOf", "oneOf", "anyOf",
     };
@@ -144,7 +175,30 @@ internal static class OpenApi31Downgrade
     /// <param name="content">The specification's text.</param>
     /// <returns>Whether it is a 3.1 document.</returns>
     private static bool DeclaresOpenApi31(string content)
-        => Declared31Yaml.IsMatch(content) || Declared31Json.IsMatch(content);
+        => MatchDeclaredVersion(content) is not null;
+
+    /// <summary>Finds the declared version, in either notation.</summary>
+    /// <param name="content">The specification's text.</param>
+    /// <returns>The match, or <c>null</c> when the document declares no version this rewrite recognises.</returns>
+    private static Match? MatchDeclaredVersion(string content)
+        => Match(Declared31Yaml, content) ?? Match(Declared31Json, content);
+
+    /// <summary>Matches a pattern, or answers <c>null</c> when it does not match or exceeds its budget.</summary>
+    /// <param name="pattern">The pattern, which carries its own timeout.</param>
+    /// <param name="content">The text to match.</param>
+    /// <returns>The successful match, or <c>null</c>.</returns>
+    private static Match? Match(Regex pattern, string content)
+    {
+        try
+        {
+            var match = pattern.Match(content);
+            return match.Success ? match : null;
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>
     /// The version rewrite on its own: everything this generator promised a 3.1 document before the tree
@@ -157,13 +211,8 @@ internal static class OpenApi31Downgrade
     private static string RewriteDeclaredVersion(
         string content, OpenApiWorkItem item, ImmutableArray<GeneratorDiagnostic>.Builder diags)
     {
-        var match = Declared31Yaml.Match(content);
-        if (!match.Success)
-        {
-            match = Declared31Json.Match(content);
-        }
-
-        if (!match.Success)
+        var match = MatchDeclaredVersion(content);
+        if (match is null)
         {
             return content;
         }
@@ -211,7 +260,7 @@ internal static class OpenApi31Downgrade
 
         if (MergeWebhooks(root, notes))
         {
-            Add(kinds, "webhooks");
+            Add(kinds, WebhooksKeyword);
         }
 
         Visit(root, string.Empty, canBeSchema: false, notes, kinds);
@@ -250,50 +299,103 @@ internal static class OpenApi31Downgrade
     {
         if (node is YamlMappingNode mapping)
         {
-            if (canBeSchema)
-            {
-                NormalizeSchema(mapping, path, notes, kinds);
-            }
-
-            foreach (var child in mapping.ToArray())
-            {
-                var name = Scalar(child.Key);
-                if (name is null || IsExtension(name) || DataKeywords.Contains(name))
-                {
-                    continue;
-                }
-
-                var childPath = path.Length == 0 ? name : path + "/" + name;
-
-                if (SchemaNameContainers.Contains(name))
-                {
-                    // The keys of this mapping are the consumer's names, so its values are the schemas.
-                    if (child.Value is YamlMappingNode named)
-                    {
-                        foreach (var entry in named.ToArray())
-                        {
-                            var entryPath = childPath + "/" + (Scalar(entry.Key) ?? "?");
-                            Visit(entry.Value, entryPath, canBeSchema: true, notes, kinds);
-                        }
-                    }
-
-                    continue;
-                }
-
-                Visit(child.Value, childPath, canBeSchema || SchemaValuedKeywords.Contains(name), notes, kinds);
-            }
-
+            VisitMapping(mapping, path, canBeSchema, notes, kinds);
             return;
         }
 
         if (node is YamlSequenceNode sequence)
         {
-            for (var index = 0; index < sequence.Children.Count; index++)
-            {
-                Visit(sequence.Children[index], path + "/" + index, canBeSchema, notes, kinds);
-            }
+            VisitSequence(sequence, path, canBeSchema, notes, kinds);
         }
     }
+
+    /// <summary>Walks a mapping's children, normalizing the mapping itself when its position allows a schema.</summary>
+    /// <param name="mapping">The mapping to walk.</param>
+    /// <param name="path">The route to the mapping, which the diagnostics name.</param>
+    /// <param name="canBeSchema">Whether this position is one a schema may occupy.</param>
+    /// <param name="notes">Collects the constructs that were mapped with a loss.</param>
+    /// <param name="kinds">The kinds of construct rewritten.</param>
+    private static void VisitMapping(
+        YamlMappingNode mapping, string path, bool canBeSchema,
+        List<(string What, string Why)> notes, List<string> kinds)
+    {
+        if (canBeSchema)
+        {
+            NormalizeSchema(mapping, path, notes, kinds);
+        }
+
+        foreach (var child in mapping.ToArray())
+        {
+            var name = Scalar(child.Key);
+            if (name is null || IsExtension(name) || DataKeywords.Contains(name))
+            {
+                continue;
+            }
+
+            var childPath = Route(path, name);
+
+            if (SchemaNameContainers.Contains(name))
+            {
+                VisitNamedSchemas(child.Value, childPath, notes, kinds);
+                continue;
+            }
+
+            Visit(child.Value, childPath, canBeSchema || SchemaValuedKeywords.Contains(name), notes, kinds);
+        }
+    }
+
+    /// <summary>Walks the values of a mapping whose keys are names, so every value is a schema.</summary>
+    /// <remarks>
+    /// The keys of such a mapping are the consumer's names, which is why the mapping itself is not treated as
+    /// a schema: only what it holds is walked.
+    /// </remarks>
+    /// <param name="node">The mapping the keyword holds.</param>
+    /// <param name="path">The route to that mapping, which the diagnostics name.</param>
+    /// <param name="notes">Collects the constructs that were mapped with a loss.</param>
+    /// <param name="kinds">The kinds of construct rewritten.</param>
+    private static void VisitNamedSchemas(
+        YamlNode node, string path, List<(string What, string Why)> notes, List<string> kinds)
+    {
+        if (node is not YamlMappingNode named)
+        {
+            return;
+        }
+
+        foreach (var entry in named.ToArray())
+        {
+            Visit(entry.Value, Route(path, Scalar(entry.Key) ?? "?"), canBeSchema: true, notes, kinds);
+        }
+    }
+
+    /// <summary>Walks a sequence's items, each at its index.</summary>
+    /// <param name="sequence">The sequence to walk.</param>
+    /// <param name="path">The route to the sequence, which the diagnostics name.</param>
+    /// <param name="canBeSchema">Whether this position is one a schema may occupy.</param>
+    /// <param name="notes">Collects the constructs that were mapped with a loss.</param>
+    /// <param name="kinds">The kinds of construct rewritten.</param>
+    private static void VisitSequence(
+        YamlSequenceNode sequence, string path, bool canBeSchema,
+        List<(string What, string Why)> notes, List<string> kinds)
+    {
+        for (var index = 0; index < sequence.Children.Count; index++)
+        {
+            Visit(sequence.Children[index], Route(path, index), canBeSchema, notes, kinds);
+        }
+    }
+
+    /// <summary>Joins a route onto a key, the way a JSON pointer does.</summary>
+    /// <param name="path">The route so far, which is empty at the document's root.</param>
+    /// <param name="segment">The key the walk steps through.</param>
+    /// <returns>The route to the child.</returns>
+    private static string Route(string path, string segment)
+        => path.Length == 0 ? segment : path + RouteSeparator + segment;
+
+    /// <summary>The same, for a sequence index.</summary>
+    /// <param name="path">The route so far.</param>
+    /// <param name="index">The item's index.</param>
+    /// <returns>The route to the item.</returns>
+    private static string Route(string path, int index)
+        => Route(path, index.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>True when a key is an extension, whose value is the consumer's and not a schema.</summary>
     /// <param name="name">The key.</param>
@@ -356,13 +458,12 @@ internal static class OpenApi31Downgrade
 
         foreach (var item in types.Children)
         {
-            var name = Scalar(item);
-            if (IsNullType(name) || declared.Contains(name!))
+            if (Scalar(item) is not { } name || IsNullType(name) || declared.Contains(name))
             {
                 continue;
             }
 
-            declared.Add(name!);
+            declared.Add(name);
         }
 
         Add(kinds, "a type array");
@@ -407,14 +508,14 @@ internal static class OpenApi31Downgrade
     /// <param name="kinds">The kinds of construct rewritten.</param>
     private static void NormalizeConst(YamlMappingNode schema, List<string> kinds)
     {
-        if (Find(schema, "const") is not { } value)
+        if (Find(schema, ConstKeyword) is not { } value)
         {
             return;
         }
 
-        Remove(schema, "const");
+        Remove(schema, ConstKeyword);
         Set(schema, "enum", new YamlSequenceNode(value));
-        Add(kinds, "const");
+        Add(kinds, ConstKeyword);
     }
 
     /// <summary>
@@ -435,14 +536,14 @@ internal static class OpenApi31Downgrade
     private static void NormalizeTuple(
         YamlMappingNode schema, string path, List<(string What, string Why)> notes, List<string> kinds)
     {
-        if (Find(schema, "prefixItems") is YamlSequenceNode prefix)
+        if (Find(schema, PrefixItemsKeyword) is YamlSequenceNode prefix)
         {
-            Remove(schema, "prefixItems");
-            Add(kinds, "prefixItems");
+            Remove(schema, PrefixItemsKeyword);
+            Add(kinds, PrefixItemsKeyword);
 
-            if (Find(schema, "items") is null && prefix.Children.Count > 0)
+            if (Find(schema, ItemsKeyword) is null && prefix.Children.Count > 0)
             {
-                Set(schema, "items", SharedElementType(prefix) ?? JsonValueSchema());
+                Set(schema, ItemsKeyword, SharedElementType(prefix) ?? JsonValueSchema());
             }
 
             notes.Add((
@@ -452,7 +553,7 @@ internal static class OpenApi31Downgrade
 
         // 3.1 makes "type" optional on an array schema - the element schema is what makes it one - while the
         // mapper keys on the type, so an array that omits it is written as the array it is.
-        if (Find(schema, "type") is null && Find(schema, "items") is YamlMappingNode)
+        if (Find(schema, "type") is null && Find(schema, ItemsKeyword) is YamlMappingNode)
         {
             Set(schema, "type", new YamlScalarNode("array"));
             Add(kinds, "an array without a type");
@@ -475,7 +576,7 @@ internal static class OpenApi31Downgrade
                 || Find(element, "type") is not YamlScalarNode type
                 || Find(element, "$ref") is not null
                 || Find(element, "properties") is not null
-                || Find(element, "items") is not null)
+                || Find(element, ItemsKeyword) is not null)
             {
                 return null;
             }
@@ -605,8 +706,7 @@ internal static class OpenApi31Downgrade
     /// <returns>Whether any reference was repointed.</returns>
     private static bool HoistDefinitions(YamlMappingNode root, List<(string What, string Why)> notes)
     {
-        var references = new List<YamlScalarNode>();
-        CollectDefinitionReferences(root, references);
+        var references = CollectDefinitionReferences(root);
 
         if (references.Count == 0)
         {
@@ -658,35 +758,22 @@ internal static class OpenApi31Downgrade
 
     /// <summary>Collects the reference nodes that point into a <c>$defs</c>.</summary>
     /// <param name="node">The node to search.</param>
+    /// <returns>The reference scalars, in the order the walk meets them.</returns>
+    private static List<YamlScalarNode> CollectDefinitionReferences(YamlNode node)
+    {
+        var references = new List<YamlScalarNode>();
+        CollectDefinitionReferences(node, references);
+        return references;
+    }
+
+    /// <summary>The recursive half: appends the reference scalars a node holds.</summary>
+    /// <param name="node">The node to search.</param>
     /// <param name="references">Collects the reference scalars.</param>
     private static void CollectDefinitionReferences(YamlNode node, List<YamlScalarNode> references)
     {
         if (node is YamlMappingNode mapping)
         {
-            foreach (var child in mapping.ToArray())
-            {
-                var name = Scalar(child.Key);
-
-                if (name == "$ref")
-                {
-                    if (child.Value is YamlScalarNode target
-                        && target.Value is { } value
-                        && NamesADefinition(value))
-                    {
-                        references.Add(target);
-                    }
-
-                    continue;
-                }
-
-                if (name is null || IsExtension(name) || DataKeywords.Contains(name))
-                {
-                    continue;
-                }
-
-                CollectDefinitionReferences(child.Value, references);
-            }
-
+            CollectFromMapping(mapping, references);
             return;
         }
 
@@ -696,6 +783,43 @@ internal static class OpenApi31Downgrade
             {
                 CollectDefinitionReferences(item, references);
             }
+        }
+    }
+
+    /// <summary>Appends the reference scalars under a mapping's keys, skipping the keys that hold data.</summary>
+    /// <param name="mapping">The mapping to search.</param>
+    /// <param name="references">Collects the reference scalars.</param>
+    private static void CollectFromMapping(YamlMappingNode mapping, List<YamlScalarNode> references)
+    {
+        foreach (var child in mapping.ToArray())
+        {
+            var name = Scalar(child.Key);
+
+            if (name == "$ref")
+            {
+                AddDefinitionReference(child.Value, references);
+                continue;
+            }
+
+            if (name is null || IsExtension(name) || DataKeywords.Contains(name))
+            {
+                continue;
+            }
+
+            CollectDefinitionReferences(child.Value, references);
+        }
+    }
+
+    /// <summary>Appends a reference when it points into a <c>$defs</c>.</summary>
+    /// <param name="target">The value the <c>$ref</c> key holds.</param>
+    /// <param name="references">Collects the reference scalars.</param>
+    private static void AddDefinitionReference(YamlNode? target, List<YamlScalarNode> references)
+    {
+        if (target is YamlScalarNode scalar
+            && scalar.Value is { } value
+            && NamesADefinition(value))
+        {
+            references.Add(scalar);
         }
     }
 
@@ -765,24 +889,7 @@ internal static class OpenApi31Downgrade
     {
         if (node is YamlMappingNode mapping)
         {
-            foreach (var child in mapping.ToArray())
-            {
-                var name = Scalar(child.Key);
-
-                if (name is "$defs" or "definitions" && child.Value is YamlMappingNode)
-                {
-                    Remove(mapping, name);
-                    continue;
-                }
-
-                if (name is null || IsExtension(name) || DataKeywords.Contains(name))
-                {
-                    continue;
-                }
-
-                RemoveDefinitions(child.Value);
-            }
-
+            RemoveDefinitionsFromMapping(mapping);
             return;
         }
 
@@ -794,6 +901,36 @@ internal static class OpenApi31Downgrade
             }
         }
     }
+
+    /// <summary>Drops the definitions a mapping holds, and searches what is left.</summary>
+    /// <param name="mapping">The mapping to search.</param>
+    private static void RemoveDefinitionsFromMapping(YamlMappingNode mapping)
+    {
+        foreach (var child in mapping.ToArray())
+        {
+            var name = Scalar(child.Key);
+
+            if (name is null || IsExtension(name) || DataKeywords.Contains(name))
+            {
+                continue;
+            }
+
+            if (IsDefinitionContainer(name, child.Value))
+            {
+                Remove(mapping, name);
+                continue;
+            }
+
+            RemoveDefinitions(child.Value);
+        }
+    }
+
+    /// <summary>True when a key holds a <c>$defs</c>-style mapping, which is what gets dropped.</summary>
+    /// <param name="name">The key.</param>
+    /// <param name="value">The value it holds.</param>
+    /// <returns>Whether the value is a definitions mapping.</returns>
+    private static bool IsDefinitionContainer(string name, YamlNode value)
+        => name is "$defs" or "definitions" && value is YamlMappingNode;
 
     /// <summary>
     /// Maps a 3.1 document's <c>webhooks</c> into <c>paths</c>, the only operation container the mapping reads.
@@ -815,7 +952,7 @@ internal static class OpenApi31Downgrade
     /// <returns>Whether any webhook was mapped.</returns>
     private static bool MergeWebhooks(YamlMappingNode root, List<(string What, string Why)> notes)
     {
-        if (Find(root, "webhooks") is not YamlMappingNode webhooks)
+        if (Find(root, WebhooksKeyword) is not YamlMappingNode webhooks)
         {
             return false;
         }
@@ -856,12 +993,12 @@ internal static class OpenApi31Downgrade
             merged++;
         }
 
-        Remove(root, "webhooks");
+        Remove(root, WebhooksKeyword);
 
         if (merged > 0)
         {
             notes.Add((
-                "webhooks",
+                WebhooksKeyword,
                 $"{merged} webhook operation(s) were mapped to RPCs; a webhook is a call the API makes to you, so a client method for one describes a payload and not a call the server accepts"));
         }
 

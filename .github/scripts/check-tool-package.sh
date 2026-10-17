@@ -27,7 +27,7 @@ if command -v cygpath >/dev/null 2>&1; then
 fi
 
 package="$(find "$artifacts" -maxdepth 1 -name 'SharpPortico.Cli.*.nupkg' | sort -V | tail -1)"
-if [ -z "$package" ]; then
+if [[ -z "$package" ]]; then
   echo "No SharpPortico.Cli package in $artifacts" >&2
   exit 1
 fi
@@ -44,7 +44,7 @@ for candidate in python3 python; do
     break
   fi
 done
-if [ -z "$interpreter" ]; then
+if [[ -z "$interpreter" ]]; then
   echo 'A Python 3 interpreter is required to read the report' >&2
   exit 1
 fi
@@ -67,8 +67,8 @@ if ! dotnet tool install SharpPortico.Cli \
 fi
 
 tool="./tool/sharpportico"
-[ -x "$tool" ] || tool="./tool/sharpportico.exe"
-if [ ! -x "$tool" ]; then
+[[ -x "$tool" ]] || tool="./tool/sharpportico.exe"
+if [[ ! -x "$tool" ]]; then
   echo "The installed tool is not in $work/tool" >&2
   ls -l tool >&2
   exit 1
@@ -130,7 +130,7 @@ EOF
 # 1. The text summary a person reads; its shape is the compatibility surface this release promised to keep.
 text_status=0
 "$tool" generate probe.yaml > summary.txt 2> summary.err || text_status=$?
-if [ "$text_status" -ne 0 ] || [ -s summary.err ]; then
+if [[ "$text_status" -ne 0 || -s summary.err ]]; then
   echo "The text summary failed (exit $text_status)" >&2
   cat summary.txt summary.err >&2
   exit 1
@@ -147,12 +147,12 @@ done
 # 2. The document, and the descriptor it names.
 json_status=0
 "$tool" generate probe.yaml --format json --out contracts > report.json 2> report.err || json_status=$?
-if [ "$json_status" -ne 0 ]; then
+if [[ "$json_status" -ne 0 ]]; then
   echo "The document mode failed (exit $json_status)" >&2
   cat report.err >&2
   exit 1
 fi
-if [ -s report.err ]; then
+if [[ -s report.err ]]; then
   echo 'The document mode wrote to standard error; standard output holds the document and nothing else' >&2
   cat report.err >&2
   exit 1
@@ -185,12 +185,12 @@ PY
 # 3. A refusal: exit code 1, no identity, the reason inside the document.
 refusal_status=0
 "$tool" generate collides.yaml --format json > refusal.json 2> refusal.err || refusal_status=$?
-if [ "$refusal_status" -ne 1 ]; then
+if [[ "$refusal_status" -ne 1 ]]; then
   echo "A refused contract exited $refusal_status, not 1" >&2
   cat refusal.err >&2
   exit 1
 fi
-if [ -s refusal.err ]; then
+if [[ -s refusal.err ]]; then
   echo 'A refusal wrote to standard error; the document carries the reason' >&2
   cat refusal.err >&2
   exit 1
@@ -231,8 +231,8 @@ for framework in net10.0 net11.0; do
   fi
 
   exe="./$path/sharpportico"
-  [ -x "$exe" ] || exe="./$path/sharpportico.exe"
-  if [ ! -x "$exe" ]; then
+  [[ -x "$exe" ]] || exe="./$path/sharpportico.exe"
+  if [[ ! -x "$exe" ]]; then
     echo "The $framework install produced no executable in $work/$path" >&2
     ls -l "$path" >&2
     exit 1
@@ -240,7 +240,7 @@ for framework in net10.0 net11.0; do
 
   framework_status=0
   "$exe" generate probe.yaml > "summary-$framework.txt" 2> "summary-$framework.err" || framework_status=$?
-  if [ "$framework_status" -ne 0 ] || [ -s "summary-$framework.err" ]; then
+  if [[ "$framework_status" -ne 0 || -s "summary-$framework.err" ]]; then
     echo "The $framework build failed (exit $framework_status)" >&2
     cat "summary-$framework.txt" "summary-$framework.err" >&2
     exit 1

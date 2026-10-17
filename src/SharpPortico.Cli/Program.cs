@@ -76,7 +76,8 @@ internal static class Program
         string? ns = null;
         var format = OutputFormat.Text;
 
-        for (var i = 2; i < args.Length; i++)
+        var i = 2;
+        while (i < args.Length)
         {
             var (name, value) = TryReadOption(args, i);
             if (name is null || value is null)
@@ -86,7 +87,8 @@ internal static class Program
                 return 2;
             }
 
-            i++;
+            i += 2;
+
             switch (name)
             {
                 case "--out": outDir = value; break;

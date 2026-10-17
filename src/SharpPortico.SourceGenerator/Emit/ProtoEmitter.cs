@@ -7,6 +7,12 @@ internal static class ProtoEmitter
 {
     private const string StreamKeyword = "stream ";
 
+    /// <summary>The import that declares the wrapper types, one per protobuf scalar.</summary>
+    private const string WrappersImport = "google/protobuf/wrappers.proto";
+
+    /// <summary>The import that declares the JSON value types.</summary>
+    private const string StructImport = "google/protobuf/struct.proto";
+
     /// <summary>
     /// The import that names each well-known type. A field of one of these types without its import produces a
     /// .proto that protoc refuses to compile, so the imports are derived from the model rather than assumed.
@@ -14,23 +20,23 @@ internal static class ProtoEmitter
     private static readonly System.Collections.Generic.Dictionary<string, string> WellKnownTypeImports = new(System.StringComparer.Ordinal)
     {
         ["google.protobuf.Any"] = "google/protobuf/any.proto",
-        ["google.protobuf.BoolValue"] = "google/protobuf/wrappers.proto",
-        ["google.protobuf.BytesValue"] = "google/protobuf/wrappers.proto",
-        ["google.protobuf.DoubleValue"] = "google/protobuf/wrappers.proto",
+        ["google.protobuf.BoolValue"] = WrappersImport,
+        ["google.protobuf.BytesValue"] = WrappersImport,
+        ["google.protobuf.DoubleValue"] = WrappersImport,
         ["google.protobuf.Duration"] = "google/protobuf/duration.proto",
         ["google.protobuf.Empty"] = "google/protobuf/empty.proto",
         ["google.protobuf.FieldMask"] = "google/protobuf/field_mask.proto",
-        ["google.protobuf.FloatValue"] = "google/protobuf/wrappers.proto",
-        ["google.protobuf.Int32Value"] = "google/protobuf/wrappers.proto",
-        ["google.protobuf.Int64Value"] = "google/protobuf/wrappers.proto",
-        ["google.protobuf.ListValue"] = "google/protobuf/struct.proto",
-        ["google.protobuf.NullValue"] = "google/protobuf/struct.proto",
-        ["google.protobuf.StringValue"] = "google/protobuf/wrappers.proto",
-        ["google.protobuf.Struct"] = "google/protobuf/struct.proto",
+        ["google.protobuf.FloatValue"] = WrappersImport,
+        ["google.protobuf.Int32Value"] = WrappersImport,
+        ["google.protobuf.Int64Value"] = WrappersImport,
+        ["google.protobuf.ListValue"] = StructImport,
+        ["google.protobuf.NullValue"] = StructImport,
+        ["google.protobuf.StringValue"] = WrappersImport,
+        ["google.protobuf.Struct"] = StructImport,
         ["google.protobuf.Timestamp"] = "google/protobuf/timestamp.proto",
-        ["google.protobuf.UInt32Value"] = "google/protobuf/wrappers.proto",
-        ["google.protobuf.UInt64Value"] = "google/protobuf/wrappers.proto",
-        ["google.protobuf.Value"] = "google/protobuf/struct.proto",
+        ["google.protobuf.UInt32Value"] = WrappersImport,
+        ["google.protobuf.UInt64Value"] = WrappersImport,
+        ["google.protobuf.Value"] = StructImport,
     };
 
     public static string Emit(GrpcModel model, OpenApiWorkItem item)

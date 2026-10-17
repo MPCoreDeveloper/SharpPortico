@@ -520,14 +520,14 @@ internal static class OpenApiParser
                     new object[] { item.FilePath, message.Name });
             }
 
-            foreach (var field in message.Fields)
+            var clash = message.Fields.FirstOrDefault(
+                field => string.Equals(field.Name, message.Name, StringComparison.Ordinal));
+
+            if (clash is not null)
             {
-                if (string.Equals(field.Name, message.Name, StringComparison.Ordinal))
-                {
-                    return new GeneratorDiagnostic(
-                        Diagnostics.Diagnostics.MemberNameEqualsType,
-                        new object[] { item.FilePath, field.Name, message.Name });
-                }
+                return new GeneratorDiagnostic(
+                    Diagnostics.Diagnostics.MemberNameEqualsType,
+                    new object[] { item.FilePath, clash.Name, message.Name });
             }
         }
 

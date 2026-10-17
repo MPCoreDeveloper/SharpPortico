@@ -73,6 +73,9 @@ internal static class Program
 {
     private static int _failures;
 
+    /// <summary>The callsign every check in the smoke test sends, so the round-trip is comparable.</summary>
+    private const string Atlas = "Atlas";
+
     public static async Task<int> Main()
     {
         Console.WriteLine("FleetService (NativeAOT)");
@@ -105,7 +108,7 @@ internal static class Program
         var vehicle = new Vehicle
         {
             Id = 1,
-            Callsign = "Atlas",                                          // type: [string, 'null']
+            Callsign = Atlas,                                            // type: [string, 'null']
             Kind = KindEnum.Truck,                                       // const: truck
             ModelYear = 2026,                                            // exclusiveMinimum: 0
             Manifest = ByteString.CopyFromUtf8("fleet"),                 // contentEncoding: base64
@@ -150,15 +153,15 @@ internal static class Program
             $"manifest={roundTrip.Manifest.ToStringUtf8()} region={roundTrip.Labels.Fields["region"].StringValue}");
 
         // ---- What the transcript claims is checked, so a run can fail ----
-        Expect(registered.Data?.Callsign == "Atlas", "RegisterVehicle returns the callsign it was given");
+        Expect(registered.Data?.Callsign == Atlas, "RegisterVehicle returns the callsign it was given");
         Expect(registered.Data?.Kind == KindEnum.Truck, "a const travels as its one-member enumeration");
         Expect(fetched.Labels.Fields.Count == 2, "a free-form object travels as a Struct");
         Expect(fetched.Bounds.Count == 2, "a tuple travels as a repeated value");
         Expect(fetched.Telemetry.KindCase == Value.KindOneofCase.StringValue, "a union travels as a Value");
         Expect(listed.Count == 1, "the registered vehicle is listed");
         Expect(retired is not null, "the webhook call returns its (empty) response body");
-        Expect(service.LastRetired?.Callsign == "Atlas", "the webhook payload arrives as the request body");
-        Expect(roundTrip.Callsign == "Atlas" && roundTrip.Kind == KindEnum.Truck, "the round-trip carries the message");
+        Expect(service.LastRetired?.Callsign == Atlas, "the webhook payload arrives as the request body");
+        Expect(roundTrip.Callsign == Atlas && roundTrip.Kind == KindEnum.Truck, "the round-trip carries the message");
         Expect(roundTrip.Manifest.ToStringUtf8() == "fleet", "base64 travels as the bytes it encodes");
 
         await server.ShutdownAsync();

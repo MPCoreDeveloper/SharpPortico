@@ -21,7 +21,7 @@ cli=${1:?usage: check-protos.sh <sharpportico-cli-dll> [protoc-include-dir] [pro
 include=${2:-/usr/include}
 protoc=${3:-protoc}
 
-if [ ! -f "$cli" ]; then
+if [[ ! -f "$cli" ]]; then
     echo "CLI assembly not found: $cli" >&2
     exit 1
 fi
@@ -31,7 +31,7 @@ if ! command -v "$protoc" >/dev/null 2>&1; then
     exit 1
 fi
 
-if [ ! -d "$include" ]; then
+if [[ ! -d "$include" ]]; then
     echo "protoc include directory not found: $include" >&2
     echo "the well-known types are in libprotobuf-dev on Debian/Ubuntu, and in include/ of the protoc release zip" >&2
     exit 1
@@ -49,7 +49,7 @@ specs=$(find "$repository/samples" -mindepth 3 -path '*/openapi/*' \
 
 compiled=0
 while IFS= read -r spec; do
-    [ -n "$spec" ] || continue
+    [[ -n "$spec" ]] || continue
 
     # samples/<Sample>/openapi/<spec>.<ext> -> <Sample>.<spec>
     relative=${spec#"$repository"/}
@@ -61,7 +61,7 @@ while IFS= read -r spec; do
     dotnet "$cli" generate "$spec" --out "$dir"
 
     proto=$(find "$dir" -maxdepth 1 -name '*.proto' -print -quit)
-    if [ -z "$proto" ]; then
+    if [[ -z "$proto" ]]; then
         echo "the CLI wrote no descriptor for $relative" >&2
         exit 1
     fi
@@ -76,7 +76,7 @@ while IFS= read -r spec; do
     compiled=$((compiled + 1))
 done <<< "$specs"
 
-if [ "$compiled" -eq 0 ]; then
+if [[ "$compiled" -eq 0 ]]; then
     echo "no spec was found under samples/*/openapi" >&2
     exit 1
 fi

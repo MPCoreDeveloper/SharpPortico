@@ -26,7 +26,7 @@ if command -v cygpath >/dev/null 2>&1; then
 fi
 
 package="$(find "$artifacts" -maxdepth 1 -name 'SharpPortico.SourceGenerator.*.nupkg' | sort -V | tail -1)"
-if [ -z "$package" ]; then
+if [[ -z "$package" ]]; then
   echo "No SharpPortico.SourceGenerator package in $artifacts" >&2
   exit 1
 fi
