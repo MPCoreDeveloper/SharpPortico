@@ -36,4 +36,13 @@
     <ProjectReference Include="..\SharpPortico.SourceGenerator\SharpPortico.SourceGenerator.csproj" />
   </ItemGroup>
 
+  <!--
+    The tests drive Program.RunAsync with their own writers, which keeps the real argument parsing, the real
+    pipeline and the real exit codes under test without redirecting Console (two tests racing for the console
+    would be flaky). The entry point stays internal: it is a seam for tests, not a second public surface.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="SharpPortico.Tests" />
+  </ItemGroup>
+
 </Project>

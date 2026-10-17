@@ -1,0 +1,10 @@
+spec:       tests/SharpPortico.Tests/openapi/petstore.yaml
+service:    PetstoreService
+namespace:  PetstoreService
+package:    petstoreservice
+rpc:        PetstoreService (3)
+  ListPets - GET /pets (Unary)
+  CreatePet - POST /pets (Unary)
+  GetPet - GET /pets/{petId} (Unary)
+messages:   7
+enums:      1

@@ -1,0 +1,39 @@
+{
+  "formatVersion": 1,
+  "spec": "tests/SharpPortico.Tests/openapi/petstore.yaml",
+  "service": {
+    "name": "PetstoreService",
+    "namespace": "PetstoreService",
+    "package": "petstoreservice"
+  },
+  "services": [
+    {
+      "name": "PetstoreService",
+      "rpcs": [
+        {
+          "name": "ListPets",
+          "httpMethod": "GET",
+          "path": "/pets",
+          "kind": "Unary"
+        },
+        {
+          "name": "CreatePet",
+          "httpMethod": "POST",
+          "path": "/pets",
+          "kind": "Unary"
+        },
+        {
+          "name": "GetPet",
+          "httpMethod": "GET",
+          "path": "/pets/{petId}",
+          "kind": "Unary"
+        }
+      ]
+    }
+  ],
+  "counts": {
+    "messages": 7,
+    "enums": 1
+  },
+  "diagnostics": []
+}

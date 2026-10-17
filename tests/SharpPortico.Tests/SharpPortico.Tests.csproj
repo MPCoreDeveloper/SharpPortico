@@ -26,10 +26,19 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SharpPortico.SourceGenerator\SharpPortico.SourceGenerator.csproj" />
+    <!--
+      The CLI is driven in-process through Program.RunAsync: the tests exercise the real argument parsing, the
+      real mapping pipeline and the real exit codes with injected writers, so no test redirects the console and
+      two tests can run side by side. The CLI exposes its internals to this assembly for exactly that seam.
+    -->
+    <ProjectReference Include="..\..\src\SharpPortico.Cli\SharpPortico.Cli.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <None Update="openapi\*.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The golden reports travel with the tests: they are the expected output, not fixtures to re-create. -->
+    <None Update="openapi\*.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="openapi\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

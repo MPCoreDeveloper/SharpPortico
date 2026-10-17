@@ -3,3 +3,10 @@
 # `core.autocrlf` keeps the blobs LF for most contributors, but it is a client-side setting, so the endings are
 # pinned here instead of left to whoever commits next.
 *.sh text eol=lf
+
+# The CLI's report and summary are compared against checked-in golden files, and for the JSON report the
+# bytes are the assertion: UTF-8 without a byte-order mark, LF endings, one trailing newline. `core.autocrlf`
+# is a client-side setting, so a Windows clone would otherwise check these two files out with CRLF.
+tests/SharpPortico.Tests/openapi/*.report.json text eol=lf
+tests/SharpPortico.Tests/openapi/*.report.txt text eol=lf
+
