@@ -45,9 +45,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   It then installs each framework the package carries, `tools/net10.0` and `tools/net11.0`, by name and runs it: an
   install resolves one of the two folders and the other would never execute, so "ships on .NET 10 and .NET 11" is now
   a claim this repository checks from the package instead of a claim about the project files.
-- **A rejected API key now says so.** The publish step reads the response instead of letting `set -e` swallow it, and
-  on a 403 emits an annotation naming the secret to renew and the command that renews it. A 403 on the
-  `1.3.0-preview.2` push went unnoticed for nine days because the run failed quietly and the feed simply did not move.
+- **Publishing uses trusted publishing, so there is no key left to expire.** The publish job asks GitHub for an OIDC
+  token and exchanges it with nuget.org for a temporary API key, valid for an hour and matched against a trust policy
+  for `MPCoreDeveloper/SharpPortico` and `.github/workflows/publish-nuget.yml`; the long-lived `NUGET_API_KEY` secret
+  is gone. A 403 now means the policy did not match, and the step says which fields to compare instead of printing a
+  raw response - the previous key expired unnoticed, and `1.3.0-preview.2` never reached the feed because of it.
 
 ## [1.3.0-preview.2] - 2026-10-06
 
