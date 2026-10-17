@@ -49,7 +49,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   token and exchanges it with nuget.org for a temporary API key, valid for an hour and matched against a trust policy
   for `MPCoreDeveloper/SharpPortico` and `.github/workflows/publish-nuget.yml`; the long-lived `NUGET_API_KEY` secret
   is gone. A 403 now means the policy did not match, and the step says which fields to compare instead of printing a
-  raw response - the previous key expired unnoticed, and `1.3.0-preview.2` never reached the feed because of it.
+  raw response - the previous key expired unnoticed, and `1.3.0-preview.2` never reached the feed because of it. The
+  first run after the switch still failed, but at the login instead of the push: `NUGET_USERNAME` held the
+  organization the policy is *owned* by, and nuget.org answers that with `401 ... No matching trust policy owned by
+  user`, because an organization cannot log in and the token exchange is matched against the account that *created*
+  the policy. Naming the personal account published all three packages, and a 401 now gets its own annotation for the
+  same reason a 403 does. `1.4.0` on the feed is what a bare `dotnet tool install SharpPortico.Cli` resolves and
+  runs - checked against nuget.org, not against the build.
 
 ## [1.3.0-preview.2] - 2026-10-06
 

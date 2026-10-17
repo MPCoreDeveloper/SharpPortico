@@ -70,8 +70,11 @@ jobs:
       # Trusted publishing: this step trades the workflow's OIDC token for a temporary API key (valid for one
       # hour) that nuget.org matched against the repository's trust policy. Nothing long-lived is stored, so
       # there is no key to expire - the 403 that stopped two releases cannot happen for that reason again.
-      # `user` is the nuget.org account the policy was created under. The action is pinned to the commit its
-      # v1 tag points at, because a tag can be moved and this step is handed the token that mints a key.
+      # `user` must be the nuget.org *personal* account that created the policy, not the organization that
+      # owns it. Organizations cannot log in, so naming one here fails the exchange with HTTP 401
+      # ("No matching trust policy owned by user ...") - which reads like a missing policy but is a missing
+      # login, and cost this repository one release. The action is pinned to the commit its v1 tag points
+      # at, because a tag can be moved and this step is handed the token that mints a key.
       - name: NuGet login (OIDC to temporary API key)
         uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         id: login
@@ -94,6 +97,8 @@ jobs:
               echo "$output"
               if printf '%s' "$output" | grep -q '403'; then
                 echo "::error title=nuget.org rejected the temporary key::403 for $name. A trusted publishing run did not match its policy. Check Repository Owner, Repository and Workflow File (publish-nuget.yml, the file name only) at https://www.nuget.org/account/trustedpublishing, and that the policy's scope covers ${name%%.*}.*"
+              elif printf '%s' "$output" | grep -q '401'; then
+                echo "::error title=nuget.org did not accept the token::401 for $name. NUGET_USERNAME must be the personal account that created the trust policy; the organization that owns the policy cannot log in."
               else
                 echo "::error title=Push failed::nuget.org rejected $name"
               fi
