@@ -29,8 +29,8 @@ public sealed class OpenApiToGrpcAttribute : Attribute
     /// derived from the file name or the OpenAPI <c>info.title</c>.
     /// </param>
     /// <param name="namespaceName">
-    /// Optional root namespace for generated code. When omitted,
-    /// <c>SharpPortico.Generated</c> is used.
+    /// Optional root namespace for generated code. When omitted, the generated service's own name is
+    /// used as the namespace, and the protobuf package is that name in lower case.
     /// </param>
     public OpenApiToGrpcAttribute(string openApiFile, string? serviceName = null, string? namespaceName = null)
     {
@@ -61,9 +61,10 @@ public sealed class OpenApiToGrpcAttribute : Attribute
     public bool EmitDependencyInjection { get; set; } = true;
 
     // ---- Mapping options (flattened for attribute-argument compatibility) ----
-    // Note: custom class objects are not valid attribute argument types in C#,
-    // so options are exposed here as individual value-type properties. The generator
-    // aggregates them into a SharpPorticoOptions instance.
+    // Note: an attribute argument has to be a compile-time constant, and a class instance is not one,
+    // so the mapping options are exposed here as individual value-type properties. The generator reads
+    // them into the pipeline's own work item; SharpPorticoOptions carries the same set as one object
+    // for code that needs to hand the options around.
 
     /// <summary>When <c>false</c>, unary RPCs are always generated even when a large
     /// payload or an <c>x-grpc-streaming</c> hint is present.</summary>

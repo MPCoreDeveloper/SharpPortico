@@ -18,9 +18,9 @@ namespace SharpPortico.Samples.NativeAotExample;
 /// </summary>
 /// <remarks>
 /// The contract served here is the one the 3.1 document describes, so the body reads back what the 3.1
-/// constructs became: a nullable string is a string, a <c>const</c> is a one-member enumeration, a union of
-/// types is an arbitrary JSON value, a tuple is a repeated one, base64 is bytes, a <c>$defs</c> reference is
-/// the message it points at, and a free-form object is a <c>Struct</c>.
+/// constructs became: a nullable string is an optional one, with presence, a <c>const</c> is a one-member
+/// enumeration, a union of types is an arbitrary JSON value, a tuple is a repeated one, base64 is bytes, a
+/// <c>$defs</c> reference is the message it points at, and a free-form object is a <c>Struct</c>.
 /// </remarks>
 internal sealed class FleetServiceImpl : FleetServiceBase
 {

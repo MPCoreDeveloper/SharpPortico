@@ -77,7 +77,7 @@ public class OpenApi31MappingTests
 
     /// <summary>
     /// A 3.1 type array that names one real type names a single type, and 3.1 writes it where 3.0 wrote
-    /// <c>nullable: true</c>.
+    /// <c>nullable: true</c> - so the member that says "null" becomes proto3 presence.
     /// </summary>
     [Fact]
     public void A_Type_Array_With_One_Real_Type_Maps_As_That_Type()
@@ -85,10 +85,10 @@ public class OpenApi31MappingTests
         const string properties = "name: { type: [string, 'null'] }";
         var result = Run(properties);
 
-        Assert.Contains("string name = ", Proto(properties), StringComparison.Ordinal);
+        Assert.Contains("optional string name = ", Proto(properties), StringComparison.Ordinal);
         Assert.Single(Diagnostics("SP1002", result));
 
-        // A nullable string is a string: nothing about it is beyond what the mapping carries, so nothing is lost.
+        // A nullable string is an optional string: protobuf has the presence 3.1 asked for, so nothing is lost.
         Assert.Empty(Diagnostics("SP1003", result));
     }
 
@@ -102,7 +102,7 @@ public class OpenApi31MappingTests
         const string properties = "name: { type: [string, ~] }";
         var result = Run(properties);
 
-        Assert.Contains("string name = ", Proto(properties), StringComparison.Ordinal);
+        Assert.Contains("optional string name = ", Proto(properties), StringComparison.Ordinal);
         Assert.Empty(Diagnostics("SP1003", result));
     }
 

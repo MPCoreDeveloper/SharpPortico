@@ -16,7 +16,7 @@ internal static class ProxyEmitter
     {
         var svc = model.Services[0];
 
-        w.Line("[global::System.CodeDom.Compiler.GeneratedCode(\"SharpPortico\", \"1.0.0\")]");
+        w.Line(GeneratorVersion.GeneratedCodeAttribute);
         w.Block($"public sealed partial class {svc.Name}Proxy : {svc.Name}Base", () =>
         {
             EmitConstructor(w, svc);
@@ -254,6 +254,23 @@ internal static class ProxyEmitter
             return;
         }
 
+        // A value nobody set is not the protobuf default: the contract said the field may be null, so the body
+        // says null rather than inventing a 0 or an empty string the caller never sent.
+        if (f.IsOptional)
+        {
+            w.Line($"if (msg.{MessageEmitter.PresenceName(f)})");
+            w.Open();
+            EmitValueAppend(w, f);
+            w.Close();
+            w.Line("else sb.Append(\"null\");");
+            return;
+        }
+
+        EmitValueAppend(w, f);
+    }
+
+    private static void EmitValueAppend(CodeWriter w, FieldModel f)
+    {
         switch (f.Kind)
         {
             case FieldKind.String:
@@ -264,6 +281,10 @@ internal static class ProxyEmitter
                 break;
             case FieldKind.Enum:
                 w.Line($"sb.Append((int)msg.{f.Name});");
+                break;
+            case FieldKind.Bytes:
+                // JSON carries bytes as base64 in a string, which is exactly what the reader expects back.
+                w.Line($"sb.Append('\\\"').Append(global::System.Convert.ToBase64String(msg.{f.Name}.ToByteArray())).Append('\\\"');");
                 break;
             case FieldKind.Message:
                 w.Line($"if (msg.{f.Name} is not null) sb.Append(Serialize{camel(f.TypeName)}(msg.{f.Name})); else sb.Append(\"null\");");
@@ -279,6 +300,7 @@ internal static class ProxyEmitter
         FieldKind.String => "sb.Append('\\\"').Append(item).Append('\\\"');",
         FieldKind.Bool => "sb.Append(item ? \"true\" : \"false\");",
         FieldKind.Enum => "sb.Append((int)item);",
+        FieldKind.Bytes => "sb.Append('\\\"').Append(global::System.Convert.ToBase64String(item.ToByteArray())).Append('\\\"');",
         _ => "sb.Append(global::System.Globalization.CultureInfo.InvariantCulture, $\"{item}\");"
     };
 
@@ -331,6 +353,17 @@ internal static class ProxyEmitter
             return;
         }
 
+        // JSON null is the absence the field was given presence for: it is not a value to read, it is the
+        // statement that there is no value. Reading it as 0 or "" is exactly the collapse this mapping removes.
+        if (f.IsOptional)
+        {
+            w.Line($"if ({e}.ValueKind != global::System.Text.Json.JsonValueKind.Null)");
+            w.Open();
+            w.Line($"{prop} = {ScalarFromElement(f, e, nullChecked: true)};");
+            w.Close();
+            return;
+        }
+
         switch (f.Kind)
         {
             case FieldKind.String:
@@ -369,9 +402,20 @@ internal static class ProxyEmitter
         }
     }
 
-    private static string ScalarFromElement(FieldModel f, string el) => f.Kind switch
+    /// <summary>
+    /// The expression that reads one JSON value of a field's kind out of a <c>JsonElement</c>.
+    /// </summary>
+    /// <param name="f">The field.</param>
+    /// <param name="el">The variable holding the element.</param>
+    /// <param name="nullChecked">Whether the caller has already established that the element is not null.</param>
+    /// <returns>The expression.</returns>
+    private static string ScalarFromElement(FieldModel f, string el, bool nullChecked = false) => f.Kind switch
     {
-        FieldKind.String => $"{el}.ValueKind == global::System.Text.Json.JsonValueKind.Null ? string.Empty : {el}.GetString() ?? string.Empty",
+        // A null string reads as the empty one, which is the protobuf default - unless the caller has already
+        // ruled null out, and then there is nothing left to decide here.
+        FieldKind.String => nullChecked
+            ? $"{el}.GetString() ?? string.Empty"
+            : $"{el}.ValueKind == global::System.Text.Json.JsonValueKind.Null ? string.Empty : {el}.GetString() ?? string.Empty",
         FieldKind.Int32 => $"{el}.GetInt32()",
         FieldKind.Int64 => $"{el}.GetInt64()",
         FieldKind.UInt32 => $"{el}.GetUInt32()",
@@ -380,15 +424,26 @@ internal static class ProxyEmitter
         FieldKind.Double => $"{el}.GetDouble()",
         FieldKind.Bool => $"{el}.GetBoolean()",
         FieldKind.Enum => $"({f.TypeName}){el}.GetInt32()",
+        // Base64 is how JSON carries bytes, and the repeated path reads every element through here - it used to
+        // fall to the default arm and read a byte string as a string.
+        FieldKind.Bytes => $"global::Google.Protobuf.ByteString.CopyFrom({el}.GetBytesFromBase64())",
         _ => $"{el}.GetString() ?? string.Empty"
     };
 
-    private static string IsSet(FieldModel f) => f.Kind switch
+    private static string IsSet(FieldModel f)
     {
-        FieldKind.String => RequestPrefix + f.Name + ".Length != 0",
-        FieldKind.Bool => RequestPrefix + f.Name,
-        _ => RequestPrefix + f.Name + " != 0"
-    };
+        // An optional field answers this question itself, and its own answer is the only correct one: an explicit
+        // empty string or an explicit 0 is a value the caller sent, which comparing against the default cannot
+        // tell from a field that was never set.
+        if (f.IsOptional) return RequestPrefix + MessageEmitter.PresenceName(f);
+
+        return f.Kind switch
+        {
+            FieldKind.String => RequestPrefix + f.Name + ".Length != 0",
+            FieldKind.Bool => RequestPrefix + f.Name,
+            _ => RequestPrefix + f.Name + " != 0"
+        };
+    }
 
     private static string ToStringCall(FieldModel f) => f.Kind switch
     {

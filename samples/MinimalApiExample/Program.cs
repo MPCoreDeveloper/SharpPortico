@@ -46,8 +46,12 @@ app.MapGet("/pets", (int limit = 20, int page = 1) =>
 
 try
 {
-    // Demo endpoint for the sample app; kept inline intentionally (see README).
-    await app.RunAsync("http://localhost:5080"); // NOSONAR S1075
+    // The sample's own address: a demo endpoint, and the port the README tells you to call. There is no
+    // configuration file to move it to, and a sample that reads its address from configuration would document
+    // nothing - so the literal stays, and S1075 stands aside for it.
+#pragma warning disable S1075 // the sample's address is the demo
+    await app.RunAsync("http://localhost:5080");
+#pragma warning restore S1075
 }
 finally
 {

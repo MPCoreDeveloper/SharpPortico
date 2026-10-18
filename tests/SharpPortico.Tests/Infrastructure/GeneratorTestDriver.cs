@@ -32,9 +32,10 @@ internal static class GeneratorTestDriver
         string specContent,
         string? serviceName = null,
         string? namespaceName = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool enableProxy = false)
     {
-        var item = Item(specContent, serviceName, namespaceName);
+        var item = Item(specContent, serviceName, namespaceName, enableProxy);
         var result = OpenApiParser.ParseAndMap(item, ImmutableArray<AdditionalFileRequest>.Empty, ct);
 
         if (!result.IsSuccess || result.Model is null)
@@ -75,9 +76,10 @@ internal static class GeneratorTestDriver
         string specContent,
         string? serviceName = null,
         string? namespaceName = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool enableProxy = false)
     {
-        var item = Item(specContent, serviceName, namespaceName);
+        var item = Item(specContent, serviceName, namespaceName, enableProxy);
         var result = OpenApiParser.ParseAndMap(item, ImmutableArray<AdditionalFileRequest>.Empty, ct);
 
         return new RunResult(
@@ -87,7 +89,11 @@ internal static class GeneratorTestDriver
                 : ImmutableDictionary<string, string>.Empty);
     }
 
-    private static OpenApiWorkItem Item(string specContent, string? serviceName, string? namespaceName)
+    private static OpenApiWorkItem Item(
+        string specContent,
+        string? serviceName,
+        string? namespaceName,
+        bool enableProxy = false)
         => new(
             FilePath: "openapi/petstore.yaml",
             HintName: "petstore",
@@ -109,7 +115,8 @@ internal static class GeneratorTestDriver
             PaginationNextPageTokenParameter: "next_page_token",
             EmitGoogleRpcStatusWrapper: true,
             ServiceNameSuffix: "Service",
-            LargePayloadStreamingThresholdBytes: 1_000_000);
+            LargePayloadStreamingThresholdBytes: 1_000_000,
+            EnableProxyGeneration: enableProxy);
 
     private static ImmutableDictionary<string, string> Emit(GrpcModel model, OpenApiWorkItem item)
         => CodeEmitter.Emit(model, item)

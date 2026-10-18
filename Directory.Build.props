@@ -20,9 +20,9 @@
     <!-- TFM for compiler-hosted assemblies (source generator + abstractions) -->
     <SharpPorticoGeneratorTargetFramework>netstandard2.0</SharpPorticoGeneratorTargetFramework>
     <SharpPorticoLangVersion>preview</SharpPorticoLangVersion>
-    <SharpPorticoProductVersion>1.4.0</SharpPorticoProductVersion>
+    <SharpPorticoProductVersion>1.5.0</SharpPorticoProductVersion>
     <!-- AssemblyVersion/FileVersion must be numeric; the package version may carry a prerelease suffix. -->
-    <SharpPorticoAssemblyVersion>1.4.0.0</SharpPorticoAssemblyVersion>
+    <SharpPorticoAssemblyVersion>1.5.0.0</SharpPorticoAssemblyVersion>
     <!-- Centralized versioning: every packable/runnable assembly uses the product version above. -->
     <Version>$(SharpPorticoProductVersion)</Version>
     <AssemblyVersion>$(SharpPorticoAssemblyVersion)</AssemblyVersion>
@@ -39,6 +39,17 @@
     <DebugType>portable</DebugType>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
   </PropertyGroup>
+
+  <!--
+    The SonarCloud gate is a build here, not a surprise after a push: this is the analyzer nuget.org ships for the
+    rules the gate applies, so the same finding is a warning in `dotnet build` and fixable on the spot. It is
+    PrivateAssets="all" and carries no runtime assets, so no package and no consumer is affected. The two
+    suppressions in the tree (a compiler polyfill type and a sample's own address) carry the rule id and the
+    reason next to them rather than a project-wide exclusion, so a new finding cannot hide behind them.
+  -->
+  <ItemGroup>
+    <PackageReference Include="SonarAnalyzer.CSharp" PrivateAssets="all" />
+  </ItemGroup>
 
   <PropertyGroup>
     <!-- NuGet metadata shared by all packable projects -->

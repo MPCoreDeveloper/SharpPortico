@@ -3,10 +3,14 @@ using System;
 namespace SharpPortico;
 
 /// <summary>
-/// Fine-grained mapping options for the SharpPortico generator.
-/// Consumable as an attribute named argument, e.g.
-/// <c>[OpenApiToGrpc("users.yaml", Options = new SharpPorticoOptions { DetectPagination = true })]</c>.
+/// Fine-grained mapping options for the SharpPortico generator, as one value object.
 /// </summary>
+/// <remarks>
+/// The generator is configured through <see cref="OpenApiToGrpcAttribute"/>, which carries the same knobs as individual
+/// properties: an attribute argument has to be a compile-time constant, so an instance of this type cannot be passed to
+/// it. This class exists so the option set can be read, compared or built as one object; the attribute's properties are
+/// what a project actually sets, and each one has the same name and default as its counterpart here.
+/// </remarks>
 public sealed class SharpPorticoOptions
 {
     /// <summary>Default options used when no explicit options are supplied.</summary>

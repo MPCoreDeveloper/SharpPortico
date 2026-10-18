@@ -104,7 +104,7 @@ internal sealed record AttributeRequest(
 }
 
 /// <summary>
-/// A generation request derived from an <c><AdditionalFiles></c> YAML/JSON spec file.
+/// A generation request derived from an <c>&lt;AdditionalFiles&gt;</c> YAML/JSON spec file.
 /// </summary>
 internal sealed record AdditionalFileRequest(
     string Path,

@@ -4,6 +4,8 @@ SharpPortico is an **incremental source generator** (C# 14, running on .NET 10 a
 
 The optional **proxy mode** turns SharpPortico into a gRPC↔REST gateway: local .NET apps call a generated gRPC service, while the server forwards to a legacy REST API (with X-Api-Key / OAuth2 outbound auth and an optional response cache).
 
+**The rest of the documentation:** [index](README.md) · [reference](reference.md) · [presence](presence.md) · [diagnostics](diagnostics.md) · [changelog](../CHANGELOG.md).
+
 ---
 
 ## 1. NuGet packages
@@ -14,7 +16,7 @@ The optional **proxy mode** turns SharpPortico into a gRPC↔REST gateway: local
 | `SharpPortico.Runtime` | AOT-safe runtime helpers incl. the proxy pipeline (`IRestClient`, `IProxyCache`, `IKeyProvider`, `IClientKeyValidator`, audit) |
 | `SharpPortico.Cli` | `dotnet sharpportico generate` — spec preview/validation: what the mapping makes of a spec, and the `.proto` descriptor a build of it would embed |
 
-> All packages carry the SharpPortico logo icon and a short NuGet readme (see `src/*/README.md`). Current version: **1.4.0**, defined once in `Directory.Build.props` (`SharpPorticoProductVersion`) — see [CHANGELOG](../CHANGELOG.md). It is the first stable release since `1.1.1`: the whole `1.2`/`1.3` preview line is folded into it, so a bare `dotnet add package` — which resolves the newest *stable* version — now gives you the mapping described here.
+> All packages carry the SharpPortico logo icon and a short NuGet readme (see `src/*/README.md`). Current version: **1.5.0**, defined once in `Directory.Build.props` (`SharpPorticoProductVersion`) — see [CHANGELOG](../CHANGELOG.md). It is a minor release over `1.4.0`: a nullable scalar now becomes a proto3 `optional` field with presence members ([presence](presence.md)), and nothing that mapped before maps differently.
 
 ---
 
@@ -145,10 +147,11 @@ Set `ProxyAuditEnabled = true` (or inject `IProxyAuditLogger`). The default logs
 | components/schemas | `message` definitions (`$ref`, `allOf`, `oneOf`/`anyOf`) |
 | free-form object (`additionalProperties`) | `google.protobuf.Struct`, with the descriptor importing `google/protobuf/struct.proto` |
 | arrays | `repeated` |
+| `nullable: true` (3.0), or `"null"` among a 3.1 type array's members | `optional` on a singular scalar — proto3 presence, so "never set" and "set to the default" stay different answers, and the message gains `Has…`/`Clear…` members. A nullable array or element is reported (`SP2000`) instead: a repeated field can neither be null nor hold an absent element |
 | enums | protobuf enums |
 | auth | metadata helpers + a `{Service}AuthInterceptor` client interceptor that attaches the credential to every call |
 | pagination | `page/limit/cursor/next_page_token` detection |
-| 3.1 `type` array (`["string", "null"]`) | the one type the members name, or `google.protobuf.Value` when several do |
+| 3.1 `type` array (`["string", "null"]`) | the one type the members name — `optional` when `null` is one of them — or `google.protobuf.Value` when several types are |
 | 3.1 `const` | the one-member enumeration the value already is |
 | 3.1 tuple (`prefixItems`) | `repeated` — the fixed length and the per-position types are reported, not carried |
 | 3.1 `contentEncoding: base64` | `bytes` |
@@ -157,6 +160,20 @@ Set `ProxyAuditEnabled = true` (or inject `IProxyAuditLogger`). The default logs
 | 3.1 `webhooks` | an RPC like every other operation — a webhook is a call the API makes to *you* |
 
 A 3.1 document is rewritten to the 3.0 form the bundled parser reads before it is parsed, and nothing in that rewrite is silent: `SP1002` says the document was read that way, and `SP1003` names each construct and what it became. A 3.0 document is left untouched, byte for byte. `x-sharpportico-json-value: true` on a schema asks for `google.protobuf.Value` where the mapping cannot infer the JSON type.
+
+### 4.1 Nullable fields and proto3 presence
+
+`nullable: true` on a singular scalar — and, in 3.1, `"null"` among a type array's members — becomes the proto3 `optional` label. The message then gains `Has{X}` and `Clear{X}()`, and "never set" and "set to the default" stop being the same answer: an absent field writes no bytes, a field set to `0` writes its tag and its value, `Equals` and `GetHashCode` include presence, and `Clone`/`MergeFrom` copy only what was set. The gateway asks `Has{X}` rather than comparing against a default, so an explicit `0` is forwarded and a JSON `null` reads back as absent.
+
+Nullable **arrays** and nullable **elements** cannot be expressed — a repeated field has neither an "unset" state nor per-element presence — so they map as `repeated` and the loss is reported as `SP2000`. A nullable property whose `Has…`/`Clear…` member the schema already declares is refused with `SP2008`.
+
+The full behaviour, including the wire format and how to upgrade, is in [presence](presence.md).
+
+### 4.2 Diagnostics
+
+Every diagnostic carries an `SP` id: `1xxx` while reading, `2xxx` while mapping, `3xxx` while emitting. An **error** refuses the contract and emits nothing for it; a **warning** means it mapped and something did not survive. `EmitDiagnosticsForUnmappableConstructs` (default `true`) controls the loss warnings only.
+
+The ids, their exact messages and the fix for each are in [diagnostics](diagnostics.md).
 
 ---
 
@@ -249,7 +266,7 @@ that a step failed:
     jq -e '.service.name == "PetstoreService"' report.json
 ```
 
-The `--framework` is only needed because the CLI multi-targets (`net10.0` / `net11.0`); `dotnet tool install -g SharpPortico.Cli --version 1.4.0` gives you `sharpportico generate` without it. `1.4.0` is a stable release, so a bare install resolves this same build — the version is still pinned in this guide so that the guide and the package it explains cannot drift apart.
+The `--framework` is only needed because the CLI multi-targets (`net10.0` / `net11.0`); `dotnet tool install -g SharpPortico.Cli --version 1.5.0` gives you `sharpportico generate` without it. `1.5.0` is a stable release, so a bare install resolves this same build — the version is still pinned in this guide so that the guide and the package it explains cannot drift apart.
 
 ---
 

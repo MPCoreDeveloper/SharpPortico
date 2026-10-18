@@ -123,12 +123,28 @@ internal static class ProtoEmitter
             {
                 foreach (var f in msg.Fields)
                 {
-                    var keyword = f.IsRepeated ? "repeated " : "";
-                    w.Line(keyword + ProtoFieldType(f) + " " + f.ProtoName + " = " + f.Number + ";");
+                    w.Line(LabelFor(f) + ProtoFieldType(f) + " " + f.ProtoName + " = " + f.Number + ";");
                 }
             });
             w.Line();
         }
+    }
+
+    /// <summary>
+    /// The label a field's declaration carries: <c>repeated</c>, <c>optional</c>, or none at all.
+    /// </summary>
+    /// <remarks>
+    /// In proto3 a singular field has no label, which is exactly what a nullable scalar could not say: it had no
+    /// presence of its own, so a value set to the default and a value never set were the same field. The
+    /// <c>optional</c> label gives that presence back, and it is only ever written for a singular scalar - a
+    /// message field is already absent until it is set, and a repeated field cannot carry per-element presence.
+    /// </remarks>
+    /// <param name="f">The field.</param>
+    /// <returns>The label, including its trailing space, or the empty string.</returns>
+    private static string LabelFor(FieldModel f)
+    {
+        if (f.IsRepeated) return "repeated ";
+        return f.IsOptional ? "optional " : "";
     }
 
     private static void EmitServices(CodeWriter w, GrpcModel model)

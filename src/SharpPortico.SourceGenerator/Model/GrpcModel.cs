@@ -47,6 +47,13 @@ public sealed record MessageModel(
     public int FieldCount => Fields.Length;
 }
 
+/// <summary>One field of a generated message.</summary>
+/// <remarks>
+/// <see cref="IsOptional"/> is proto3's <c>optional</c> label: the field is a singular scalar the contract
+/// declared nullable, so it gets explicit presence and the generated message grows <c>Has</c>/<c>Clear</c>
+/// members. A message field never needs it - a message field is already absent until it is set - and a repeated
+/// field cannot have it, because proto3 has no per-element presence.
+/// </remarks>
 public sealed record FieldModel(
     string Name,
     string ProtoName,
@@ -54,7 +61,8 @@ public sealed record FieldModel(
     FieldKind Kind,
     string CsType,
     string? TypeName = null,
-    bool IsRepeated = false);
+    bool IsRepeated = false,
+    bool IsOptional = false);
 
 public enum FieldKind
 {

@@ -89,6 +89,20 @@ internal static class OpenApiParser
                 new object[] { item.FilePath, name, existing, declared }));
         }
 
+        // 5d) A nullable position protobuf cannot carry is stated rather than silently mapped to the nearest value.
+        //     This is a warning, not a refusal: the contract still maps, and what it costs is exactly what the
+        //     caller has to know. The option that gates it is the one that means "tell me about the constructs that
+        //     did not survive intact".
+        if (item.EmitDiagnosticsForUnmappableConstructs)
+        {
+            foreach (var (where, why) in schemaMapper.NullabilityLosses)
+            {
+                diags.Add(new GeneratorDiagnostic(
+                    Diagnostics.Diagnostics.UnmappableConstruct,
+                    new object[] { "nullable", where, why }));
+            }
+        }
+
         // 6) Auth schemes
         var authSchemes = (item.GenerateAuthMetadataHelpers || item.GenerateAuthInterceptors)
             ? MapAuthSchemes(document)
@@ -503,8 +517,8 @@ internal static class OpenApiParser
         => p.Replace('\\', '/').TrimStart('.', '/');
 
     /// <summary>
-    /// Finds a contract that cannot compile: one message name produced twice, or a property that would
-    /// generate a member named like its enclosing type.
+    /// Finds a contract that cannot compile: one message name produced twice, a property that would generate a
+    /// member named like its enclosing type, or a nullable property whose presence members the schema already uses.
     /// </summary>
     private static GeneratorDiagnostic? FindContractConflict(
         ImmutableArray<MessageModel>.Builder messages, OpenApiWorkItem item)
@@ -528,6 +542,52 @@ internal static class OpenApiParser
                 return new GeneratorDiagnostic(
                     Diagnostics.Diagnostics.MemberNameEqualsType,
                     new object[] { item.FilePath, clash.Name, message.Name });
+            }
+
+            if (FindPresenceClash(message) is { } presence)
+            {
+                return new GeneratorDiagnostic(
+                    Diagnostics.Diagnostics.PresenceAccessorCollision,
+                    new object[] { item.FilePath, presence.Field, message.Name, presence.Clash });
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Finds a nullable field whose <c>Has</c>/<c>Clear</c> member another member of the same message already uses.
+    /// </summary>
+    /// <remarks>
+    /// A nullable scalar becomes an <c>optional</c> field with presence members, and those names are the schema's
+    /// property names too: <c>hasMore</c> next to a nullable <c>more</c> would emit <c>HasMore</c> twice. Both are
+    /// the contract's own words, so neither can be renamed for it, and the enclosing type's name is included
+    /// because a member may not share its type's name either (CS0542).
+    /// </remarks>
+    /// <param name="message">The message whose fields to check.</param>
+    /// <returns>The first collision, or <see langword="null"/>.</returns>
+    private static (string Field, string Clash)? FindPresenceClash(MessageModel message)
+    {
+        foreach (var field in message.Fields)
+        {
+            if (!field.IsOptional) continue;
+
+            var has = "Has" + field.Name;
+            var clear = "Clear" + field.Name;
+
+            var clash = message.Fields.FirstOrDefault(
+                other => string.Equals(other.Name, has, StringComparison.Ordinal)
+                    || string.Equals(other.Name, clear, StringComparison.Ordinal));
+
+            if (clash is not null)
+            {
+                return (field.Name, clash.Name);
+            }
+
+            if (string.Equals(message.Name, has, StringComparison.Ordinal)
+                || string.Equals(message.Name, clear, StringComparison.Ordinal))
+            {
+                return (field.Name, message.Name);
             }
         }
 
@@ -590,9 +650,8 @@ internal static class OpenApiParser
     {
         long total = 0;
         if (body.Content is null) return 0;
-        foreach (var kvp2 in body.Content)
+        foreach (var media in body.Content.Values)
         {
-            var media = kvp2.Value;
             if (media?.Schema?.Type == "object" && media.Schema.Properties is { } props)
             {
                 total += props.Count * 64L;

@@ -12,8 +12,7 @@ namespace SharpPortico.Generator.Emit;
 /// </summary>
 internal static class ServiceEmitter
 {
-    private const string GeneratedCodeAttribute =
-        "[global::System.CodeDom.Compiler.GeneratedCode(\"SharpPortico\", \"1.0.0\")]";
+    private static readonly string GeneratedCodeAttribute = GeneratorVersion.GeneratedCodeAttribute;
 
     /// <summary>The documentation comment an override carries instead of repeating the contract's.</summary>
     private const string InheritDoc = "/// <inheritdoc />";

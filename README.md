@@ -21,6 +21,7 @@ Runs on **.NET 10 and .NET 11**. The generator itself is `netstandard2.0`, which
 - 🔁 **Proxy mode** — generated `{Service}Proxy : ServiceBase` forwards gRPC → legacy REST (X-Api-Key outbound, response cache with per-call bypass, ULID client keys, audit logging)
 - 🔐 **Auth mapped** — Bearer / API-Key / OAuth2 metadata helpers and interceptors
 - 🧠 **Smart mapping** — `$ref`, `allOf`, `oneOf`/`anyOf`, arrays → `repeated`, enums, pagination detection, streaming hints (`x-grpc-streaming`), octet-stream → `bytes`
+- 🎯 **Presence, not defaults** — a nullable scalar becomes a proto3 `optional` field with `Has…`/`Clear…`, so "never set" and "set to `0`" stay different answers on the wire, in `Equals`, and in the gateway ([presence](docs/presence.md))
 - 🧾 **A CLI that answers a gate** — `sharpportico generate spec.yaml --format json` prints one deterministic document (service identity, RPC surface, counts, every diagnostic) and still exits `1` on a refusal, so a pipeline branches on the exit code instead of parsing text
 - 🛠️ **Two declaration styles** — `<AdditionalFiles>` and/or `[OpenApiToGrpc]` assembly attributes
 
@@ -51,6 +52,7 @@ flowchart LR
 | components/schemas | `message` definitions; `$ref`, `allOf`, `oneOf`/`anyOf` resolved |
 | OpenAPI **3.1** — `type` arrays, `const`, `prefixItems`, `contentEncoding`, numeric exclusive bounds, `$defs`, `webhooks` | read through a 3.0 rewrite; each construct is mapped, and what it lost is reported (`SP1002`/`SP1003`) rather than passed over |
 | arrays | `repeated` fields |
+| `nullable: true` (or a 3.1 `["string", "null"]` type array) | `optional` on a singular scalar: proto3 presence, so a value set to the default and a value never sent stay different answers |
 | enums | protobuf enums |
 | authentication | metadata helpers + interceptors for Bearer / API-Key / OAuth2 |
 | pagination | `page/limit/cursor/next_page_token` detected → token-based or server-streaming |
@@ -147,7 +149,18 @@ server.Services.Add(UserService.BindService(
 - **Keys never hardcoded**: `IKeyProvider` (config / Key Vault / delegate).
 - **Audit**: `ProxyAuditEnabled = true` (or inject `IProxyAuditLogger`) logs client, RPC, cache-hit, HTTP status.
 
-Live end-to-end demo: `samples/LegacyProxyExample`. OpenAPI 3.1 + NativeAOT demo: `samples/NativeAotExample`. Full developer guide: `docs/SharpPortico.md`. NuGet package readmes: `src/SharpPortico.SourceGenerator/README.md`, `src/SharpPortico.Runtime/README.md`, `src/SharpPortico.Cli/README.md`.
+Live end-to-end demo: `samples/LegacyProxyExample`. OpenAPI 3.1 + NativeAOT demo: `samples/NativeAotExample`.
+
+## Documentation
+
+| Document | Answers |
+| --- | --- |
+| [`docs/README.md`](docs/README.md) | the index: which page answers which question, and how each claim is proved |
+| [`docs/SharpPortico.md`](docs/SharpPortico.md) | the developer guide — packages, declaration, proxy mode, mapping rules, samples |
+| [`docs/reference.md`](docs/reference.md) | every option and default, the generated surface member by member, the runtime contracts, the CLI, compatibility |
+| [`docs/presence.md`](docs/presence.md) | nullable fields → proto3 `optional`: members, wire format, gateway behaviour, upgrading |
+| [`docs/diagnostics.md`](docs/diagnostics.md) | every `SP…` id, its severity, what to fix, and how to gate a build on it |
+| `src/*/README.md` | the NuGet package readmes, shipped inside the packages |
 
 ## Repo layout
 
@@ -172,7 +185,7 @@ SharpPortico/
 ## CLI
 
 ```bash
-dotnet tool install -g SharpPortico.Cli --version 1.4.0
+dotnet tool install -g SharpPortico.Cli --version 1.5.0
 
 # What the mapping makes of the spec: service, namespace, package, RPC surface, counts, diagnostics
 sharpportico generate openapi/petstore.yaml

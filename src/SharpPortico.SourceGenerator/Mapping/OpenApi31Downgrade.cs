@@ -440,10 +440,11 @@ internal static class OpenApi31Downgrade
     /// </summary>
     /// <remarks>
     /// <c>type: [string, "null"]</c> is what 3.1 writes where 3.0 wrote <c>nullable: true</c>, and it names a
-    /// single type, so it maps as that type: proto3 has no null for a scalar, and the default value its field
-    /// already has is the closest thing to one. A union of several types has no protobuf type that holds it,
-    /// but it does have <c>google.protobuf.Value</c>, whose whole purpose is "a JSON value" - which describes
-    /// the union better than any one of its branches.
+    /// single type, so it maps as that type with the nullable flag set: the scalar becomes a proto3
+    /// <c>optional</c> field, which is the presence that keeps "left out" from reading back as a value nobody
+    /// sent. A union of several types has no protobuf type that holds it, but it does have
+    /// <c>google.protobuf.Value</c>, whose whole purpose is "a JSON value" - which describes the union better
+    /// than any one of its branches.
     /// </remarks>
     /// <param name="schema">The schema holding the type array.</param>
     /// <param name="types">The type array.</param>
@@ -455,15 +456,22 @@ internal static class OpenApi31Downgrade
         List<(string What, string Why)> notes, List<string> kinds)
     {
         var declared = new List<string>();
+        var allowsNull = false;
 
         foreach (var item in types.Children)
         {
-            if (Scalar(item) is not { } name || IsNullType(name) || declared.Contains(name))
+            if (Scalar(item) is not { } name)
             {
                 continue;
             }
 
-            declared.Add(name);
+            if (IsNullType(name))
+            {
+                allowsNull = true;
+                continue;
+            }
+
+            if (!declared.Contains(name)) declared.Add(name);
         }
 
         Add(kinds, "a type array");
@@ -471,6 +479,14 @@ internal static class OpenApi31Downgrade
         if (declared.Count == 1)
         {
             Set(schema, "type", new YamlScalarNode(declared[0]));
+
+            // 3.1 writes "this may be null" as a member of the type array; 3.0 writes it as a flag. The mapper
+            // reads the flag and gives the field proto3 presence, so the null survives as an absent field
+            // instead of as a 0 or an empty string that a consumer cannot tell from one nobody sent.
+            if (allowsNull)
+            {
+                Set(schema, "nullable", new YamlScalarNode("true"));
+            }
             return;
         }
 
@@ -1025,15 +1041,8 @@ internal static class OpenApi31Downgrade
     /// <returns>The value, or <c>null</c> when the mapping has no such key.</returns>
     private static YamlNode? Find(YamlMappingNode mapping, string name)
     {
-        foreach (var child in mapping)
-        {
-            if (Scalar(child.Key) == name)
-            {
-                return child.Value;
-            }
-        }
-
-        return null;
+        var entry = Entry(mapping, name);
+        return entry.Key is null ? null : entry.Value;
     }
 
     /// <summary>Sets a key's value, replacing the value of an existing key and appending a new one.</summary>
@@ -1042,16 +1051,16 @@ internal static class OpenApi31Downgrade
     /// <param name="value">The value.</param>
     private static void Set(YamlMappingNode mapping, string name, YamlNode value)
     {
-        foreach (var child in mapping)
-        {
-            if (Scalar(child.Key) == name)
-            {
-                mapping.Children[child.Key] = value;
-                return;
-            }
-        }
+        var entry = Entry(mapping, name);
 
-        mapping.Add(new YamlScalarNode(name), value);
+        if (entry.Key is null)
+        {
+            mapping.Add(new YamlScalarNode(name), value);
+        }
+        else
+        {
+            mapping.Children[entry.Key] = value;
+        }
     }
 
     /// <summary>Removes a key, whether or not the mapping had one.</summary>
@@ -1059,22 +1068,25 @@ internal static class OpenApi31Downgrade
     /// <param name="name">The key.</param>
     private static void Remove(YamlMappingNode mapping, string name)
     {
-        YamlNode? key = null;
+        var entry = Entry(mapping, name);
 
-        foreach (var child in mapping)
+        if (entry.Key is not null)
         {
-            if (Scalar(child.Key) == name)
-            {
-                key = child.Key;
-                break;
-            }
-        }
-
-        if (key is not null)
-        {
-            mapping.Children.Remove(key);
+            mapping.Children.Remove(entry.Key);
         }
     }
+
+    /// <summary>The mapping's entry whose key text is <paramref name="name"/>.</summary>
+    /// <remarks>
+    /// <c>default(KeyValuePair&lt;YamlNode, YamlNode&gt;)</c> carries a null key and a mapping never has one, so
+    /// "key is null" is the not-found answer and the three callers above need no second lookup. Looking the entry
+    /// up before touching the collection also means <c>Set</c> and <c>Remove</c> never mutate what they enumerate.
+    /// </remarks>
+    /// <param name="mapping">The mapping.</param>
+    /// <param name="name">The key text to find.</param>
+    /// <returns>The entry, or <c>default</c> when the mapping has no such key.</returns>
+    private static KeyValuePair<YamlNode, YamlNode> Entry(YamlMappingNode mapping, string name)
+        => mapping.FirstOrDefault(child => Scalar(child.Key) == name);
 
     /// <summary>The text of a scalar node, or <c>null</c> when the node is not a scalar.</summary>
     /// <param name="node">The node.</param>

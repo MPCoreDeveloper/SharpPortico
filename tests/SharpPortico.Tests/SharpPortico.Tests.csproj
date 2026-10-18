@@ -27,6 +27,12 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SharpPortico.SourceGenerator\SharpPortico.SourceGenerator.csproj" />
     <!--
+      The gateway emission names SharpPortico.Proxy types, so compiling what the generator emits only proves
+      something when the runtime those names come from is in the test's own output directory: the compiler
+      resolves references from there.
+    -->
+    <ProjectReference Include="..\..\src\SharpPortico.Runtime\SharpPortico.Runtime.csproj" />
+    <!--
       The CLI is driven in-process through Program.RunAsync: the tests exercise the real argument parsing, the
       real mapping pipeline and the real exit codes with injected writers, so no test redirects the console and
       two tests can run side by side. The CLI exposes its internals to this assembly for exactly that seam.

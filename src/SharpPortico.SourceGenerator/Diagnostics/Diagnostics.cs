@@ -153,5 +153,25 @@ internal static class Diagnostics
         isEnabledByDefault: true,
         description: "A generated member may not share its name with the type that contains it.");
 
+    /// <summary>
+    /// SP2008: a nullable property needs a presence member the schema already uses, which cannot compile.
+    /// </summary>
+    /// <remarks>
+    /// A nullable scalar becomes a proto3 <c>optional</c> field, and the generated message gains
+    /// <c>Has{Property}</c> and <c>Clear{Property}</c> so a consumer can tell "absent" from "set to the default".
+    /// A contract that also declares a property of that name - <c>hasMore</c> next to a nullable <c>more</c> -
+    /// would produce the same member twice, so the two cannot both exist.
+    /// </remarks>
+    public static DiagnosticDescriptor PresenceAccessorCollision { get; } = new(
+        id: "SP2008",
+        title: "Presence member collides with a property",
+        messageFormat: "SharpPortico cannot map '{0}': property '{1}' of schema '{2}' is nullable, so its message "
+            + "needs presence members named 'Has{1}' and 'Clear{1}', but '{3}' is already a member of '{2}'. "
+            + "Rename one of the two",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "One generated member name cannot carry both a presence flag and a property.");
+
 
 }

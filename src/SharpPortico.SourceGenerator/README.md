@@ -6,12 +6,14 @@
 
 SharpPortico is a compile-time `IIncrementalGenerator`. Declare your OpenAPI spec (YAML or JSON) with an `[assembly: OpenApiToGrpc]` attribute or an MSBuild `<AdditionalFiles>` item, and it generates production-quality gRPC services, hand-written protobuf messages, typed C# 14 clients and DI wiring — zero reflection, NativeAOT-safe. Enable **proxy mode** and it also emits a `{Service}Proxy` that turns the service into a gRPC↔REST gateway for legacy APIs.
 
+A property the contract declares `nullable` becomes a proto3 `optional` field, and its message gains `Has…`/`Clear…`, so "never set" and "set to the default" stay different answers on the wire and in the gateway. Nullable arrays and elements cannot be expressed by `repeated` and are reported instead of being dropped silently.
+
 Add the spec to your project as an `AdditionalFiles` item — that is where the content comes from — and the
 generator runs on every build:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="SharpPortico.SourceGenerator" Version="1.4.0"
+  <PackageReference Include="SharpPortico.SourceGenerator" Version="1.5.0"
                     PrivateAssets="all" />
   <AdditionalFiles Include="openapi/**/*.yaml" />
 </ItemGroup>

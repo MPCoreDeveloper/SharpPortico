@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -24,9 +25,52 @@ internal static class GeneratedCodeCompiler
     public static ImmutableArray<string> Errors(
         IEnumerable<string> sources,
         LanguageVersion languageVersion = LanguageVersion.Latest)
+        => Compile(sources, languageVersion, "SharpPortico.Generated.Under.Test")
+            .GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .Select(static diagnostic => diagnostic.ToString())
+            .ToImmutableArray();
+
+    /// <summary>
+    /// Compiles sources and loads the result, so a test can run the code the generator emitted instead of reading it.
+    /// </summary>
+    /// <remarks>
+    /// Presence is a runtime fact: an absent field and a field set to its default hold the same value and produce
+    /// different bytes, and only running the emitted message can show whether the mapping carried that difference
+    /// through. The assembly gets a unique name per call, because two assemblies with one identity cannot share a
+    /// load context and more than one test loads an emission.
+    /// </remarks>
+    /// <param name="sources">The generated sources.</param>
+    /// <param name="languageVersion">The C# version to compile them as.</param>
+    /// <returns>The loaded assembly, or <see langword="null"/> and the errors when it did not compile.</returns>
+    public static (Assembly? Assembly, ImmutableArray<string> Errors) Load(
+        IEnumerable<string> sources,
+        LanguageVersion languageVersion = LanguageVersion.Latest)
     {
-        var compilation = CSharpCompilation.Create(
-            "SharpPortico.Generated.Under.Test",
+        var compilation = Compile(
+            sources,
+            languageVersion,
+            "SharpPortico.Generated.Under.Test." + Guid.NewGuid().ToString("N"));
+
+        using var stream = new MemoryStream();
+        var errors = compilation
+            .Emit(stream)
+            .Diagnostics
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .Select(static diagnostic => diagnostic.ToString())
+            .ToImmutableArray();
+
+        return errors.IsEmpty
+            ? (Assembly.Load(stream.ToArray()), errors)
+            : (null, errors);
+    }
+
+    private static CSharpCompilation Compile(
+        IEnumerable<string> sources,
+        LanguageVersion languageVersion,
+        string assemblyName)
+        => CSharpCompilation.Create(
+            assemblyName,
             sources.Select(source => CSharpSyntaxTree.ParseText(
                 source,
                 new CSharpParseOptions(languageVersion))),
@@ -34,15 +78,6 @@ internal static class GeneratedCodeCompiler
             new CSharpCompilationOptions(
                 OutputKind.DynamicallyLinkedLibrary,
                 nullableContextOptions: NullableContextOptions.Enable));
-
-        return
-        [
-            .. compilation
-                .GetDiagnostics()
-                .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-                .Select(static diagnostic => diagnostic.ToString()),
-        ];
-    }
 
     private static ImmutableArray<MetadataReference> References()
     {

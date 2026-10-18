@@ -6,15 +6,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-17
+
+### Added
+- **A nullable property keeps its meaning: it becomes proto3 `optional`, with presence.** The mapping used to drop
+  `nullable: true`, because a singular proto3 scalar has no presence of its own: a nullable `retries` arrived as a `0`
+  that a consumer could not tell from a value nobody had sent, and a nullable `nickname` arrived as an empty string. It
+  now emits the `optional` label (`optional int32 retries = 3;`) and gives the message the members protoc gives an
+  optional field: a private flag, `bool HasX`, `void ClearX()`, and a property whose setter raises the flag. Strings and
+  `bytes` keep a nullable backing field so "never set" and "set to empty" differ in memory as well. Every generated
+  member answers on that one question: an absent field contributes nothing to `CalculateSize`, writes no tag, copies
+  nothing in `MergeFrom`/`Clone`, and is not equal to the same value set explicitly; `GetHashCode` includes presence.
+  Message and `Timestamp` fields are untouched — a message field already has presence — and a non-nullable property is
+  still a plain proto3 field. On the wire nothing moves: field numbers and types are unchanged, an older reader keeps
+  the values and only loses the distinction, and the descriptor is accepted by `protoc` 3.15 and later. The behaviour,
+  the generated code and the upgrade notes are in [`docs/presence.md`](docs/presence.md).
+- **`SP2008` — a presence member the schema already declares is refused.** A nullable `more` needs `HasMore` and
+  `ClearMore`; a contract that also declares `hasMore` would emit `HasMore` twice and not compile. Generation is refused
+  with the two names and the schema, instead of emitting a file that fails in the consumer's compile.
+- **`docs/reference.md` and `docs/diagnostics.md`.** A reference for this version — packages, the three ways to declare a
+  spec, every option with its default, the generated surface member by member, the runtime contracts, the CLI and how
+  each claim is verified — and a page per diagnostic id with its severity, trigger, exact message and remedy.
+  [`docs/README.md`](docs/README.md) indexes the set.
+
 ### Changed
+- **`SP2000` is raised: a nullable array or element is reported, not passed over.** `SP2000` was declared and never
+  reported, so the one construct that cannot be mapped faithfully was the one nothing said anything about. A nullable
+  array, or an array whose elements are nullable, still maps to `repeated`, and now says what it cannot carry — the
+  array's own null and each element's null. It is a warning, gated by `EmitDiagnosticsForUnmappableConstructs` like
+  every loss report, because the contract still maps and still compiles.
+- **The gateway asks the field whether it was set.** A nullable request parameter is forwarded when `HasX` is true, so an
+  explicit `0` or empty string is sent instead of being dropped; a JSON `null` in a response leaves the field absent
+  instead of reading back as `0`; and a field nobody set is written as `null` rather than as the default value the caller
+  never sent. `bytes` are base64 on both paths, including each element of a repeated field, which used to read a base64
+  string as plain text.
+- **`[GeneratedCode]` names the version that produced the file.** It read `"1.0.0"` in every release, naming a version
+  that never emitted the code; it now carries the generator's own version (`1.5.0`), taken from the assembly's
+  `AssemblyVersion` so the output stays byte-identical between builds of one version.
+- **The Sonar analyzer is part of the build.** `SonarAnalyzer.CSharp` is referenced as a development-only analyzer
+  (`PrivateAssets="all"`), so the rules the SonarCloud gate applies are warnings in a local `dotnet build` instead of a
+  finding after a push. The findings it raised in the tree were cleared: three `foreach` lookups in the 3.1 rewrite
+  became one documented `FirstOrDefault` helper, a dictionary loop in the parser became an enumeration of its values, and
+  the two intentional suppressions (a compiler polyfill type, a sample's own address) use `#pragma warning disable` with
+  the rule id and the reason rather than `// NOSONAR`, which the Roslyn analyzer cannot see.
 - **A 3.1 document whose declared version exceeds the rewrite's match budget is refused by the reader, not by an
-  exception out of the generator.** The two patterns that recognise the declaration are anchored and linear, so no
-  real document comes near the two-second timeout they now carry; the timeout exists because a regular expression
-  without one is a denial-of-service surface, and this one runs inside a consumer's build. A timeout falls through to
-  the path a 3.1 document already took before the tree rewrite: the reader reports that it cannot read the version.
-  The rest of this change is internal — the analyzer findings that held the SonarCloud gate at ERROR (one bug, two
-  vulnerabilities, and the code smells that came with them) are cleared, and no generated code, `.proto` or CLI
-  output changes.
+  exception out of the generator.** The two patterns that recognise the declaration are anchored and linear, so no real
+  document comes near the two-second timeout they now carry; the timeout exists because a regular expression without one
+  is a denial-of-service surface, and this one runs inside a consumer's build. A timeout falls through to the path a 3.1
+  document already took before the tree rewrite: the reader reports that it cannot read the version.
+- **The version is `1.5.0`.** A new capability in a published product is a minor release; every install line, the
+  developer guide's current-version line and the two package readmes carry it, and CI checks each against
+  `Directory.Build.props`.
+
+### Fixed
+- **Two doc comments that described behaviour the code does not have.** `SharpPorticoOptions` advertised
+  `[OpenApiToGrpc(…, Options = new SharpPorticoOptions { … })]`, which is not legal — an attribute argument must be a
+  compile-time constant — and `OpenApiToGrpcAttribute` said an omitted namespace defaults to `SharpPortico.Generated`
+  when it defaults to the service's own name. Both now say what happens.
+- **`<AdditionalFiles>` in a doc comment.** The tag was written unescaped inside `<c>`, so the compiler rejected the
+  three lines that followed it (`CS1570`) and the type's documentation was truncated.
 
 ## [1.4.0] - 2026-10-17
 

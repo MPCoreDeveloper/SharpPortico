@@ -36,7 +36,7 @@ internal static class MessageEmitter
 
     private static void EmitMessage(CodeWriter w, MessageModel msg)
     {
-        w.Line("[global::System.CodeDom.Compiler.GeneratedCode(\"SharpPortico\", \"1.0.0\")]");
+        w.Line(GeneratorVersion.GeneratedCodeAttribute);
         w.Line($"public sealed partial class {msg.Name} : global::Google.Protobuf.IMessage<{msg.Name}>");
         w.Line("{");
         w.Open();
@@ -96,6 +96,12 @@ internal static class MessageEmitter
                 {
                     w.Line($"foreach (var item in {f.Name}) result.{f.Name}.Add(item);");
                 }
+                else if (f.IsOptional)
+                {
+                    // Copying the value alone is not enough: every write raises the presence flag, so an absent
+                    // field would come back as one that was explicitly set to the default.
+                    w.Line($"if ({PresenceName(f)}) result.{f.Name} = {f.Name};");
+                }
                 else if (f.Kind == FieldKind.Message)
                 {
                     w.Line($"if ({f.Name} is not null) result.{f.Name} = {f.Name}.Clone();");
@@ -124,6 +130,12 @@ internal static class MessageEmitter
                 {
                     w.Line($"if (!{f.Name}.Equals(other.{f.Name})) return false;");
                 }
+                else if (f.IsOptional)
+                {
+                    // Presence is part of the field's identity: a field left out is not a field set to 0.
+                    w.Line($"if ({PresenceName(f)} != other.{PresenceName(f)}) return false;");
+                    w.Line($"if ({PresenceName(f)} && !global::System.Collections.Generic.EqualityComparer<{FieldPropertyType(f)}>.Default.Equals({f.Name}, other.{f.Name})) return false;");
+                }
                 else
                 {
                     w.Line($"if (!global::System.Collections.Generic.EqualityComparer<{FieldPropertyType(f)}>.Default.Equals({f.Name}, other.{f.Name})) return false;");
@@ -143,6 +155,11 @@ internal static class MessageEmitter
                 if (f.IsRepeated)
                 {
                     w.Line($"hash ^= {f.Name}.GetHashCode();");
+                }
+                else if (f.IsOptional)
+                {
+                    // Only a field that was set contributes, as protoc's own generated code does.
+                    w.Line($"if ({PresenceName(f)}) hash ^= {f.Name}.GetHashCode();");
                 }
                 else if (IsReferenceField(f))
                 {
@@ -181,6 +198,12 @@ internal static class MessageEmitter
                 if (f.IsRepeated)
                 {
                     EmitRepeatedSizeLine(w, f, tagSize);
+                }
+                else if (f.IsOptional)
+                {
+                    // A set field is on the wire even when its value is the default, which is the only thing
+                    // presence buys; an absent one costs nothing.
+                    w.Line($"if ({PresenceName(f)}) size += {tagSize} + {ComputeSizeExpression(f)};");
                 }
                 else if (f.Kind == FieldKind.Message)
                 {
@@ -224,6 +247,22 @@ internal static class MessageEmitter
         }
     }
 
+    /// <summary>
+    /// The size call for one value of a field, spelled the same way for a field that is always counted and one
+    /// that is counted only when it was set.
+    /// </summary>
+    /// <remarks>
+    /// An enumeration's value is an <c>int</c> on the wire, so it needs the cast; every other scalar kind has a
+    /// <c>Compute…Size</c> helper that takes it as it is. Repeated fields are counted per element and name their
+    /// own calls, which is why this is the singular spelling.
+    /// </remarks>
+    /// <param name="f">The field.</param>
+    /// <returns>The expression that computes the value's size.</returns>
+    private static string ComputeSizeExpression(FieldModel f)
+        => f.Kind == FieldKind.Enum
+            ? $"global::Google.Protobuf.CodedOutputStream.ComputeInt32Size((int){f.Name})"
+            : $"global::Google.Protobuf.CodedOutputStream.{Wire.ComputeSize(f.Kind)}({f.Name})";
+
     private static void EmitMergeFromOther(CodeWriter w, MessageModel msg)
     {
         w.Block($"public void MergeFrom({msg.Name} other)", () =>
@@ -234,6 +273,12 @@ internal static class MessageEmitter
                 if (f.IsRepeated)
                 {
                     w.Line($"{f.Name}.Add(other.{f.Name});");
+                }
+                else if (f.IsOptional)
+                {
+                    // An absent field on the source leaves the destination as it was, which is the same rule a
+                    // message field follows one branch down.
+                    w.Line($"if (other.{PresenceName(f)}) {f.Name} = other.{f.Name};");
                 }
                 else if (f.Kind == FieldKind.Message)
                 {
@@ -334,6 +379,12 @@ internal static class MessageEmitter
                 {
                     EmitRepeatedWriteLine(w, f);
                 }
+                else if (f.IsOptional)
+                {
+                    // Written whenever it was set, even if the value is the default: that is what the receiver
+                    // needs in order to tell the two apart.
+                    w.Line($"if ({PresenceName(f)}) {{ output.WriteRawTag({RawTagArgs(f)}); {WriteValueExpression(f)} }}");
+                }
                 else if (f.Kind == FieldKind.Message)
                 {
                     w.Line($"if ({f.Name} is not null) {{ output.WriteRawTag({RawTagArgs(f)}); output.WriteMessage({f.Name}); }}");
@@ -402,6 +453,11 @@ internal static class MessageEmitter
             w.Line($"public global::Google.Protobuf.Collections.RepeatedField<{FieldPropertyType(f)}> {f.Name} {{ get; }} = new();");
             return;
         }
+        if (f.IsOptional)
+        {
+            EmitOptionalProperty(w, f);
+            return;
+        }
         if (f.Kind == FieldKind.Message || f.Kind == FieldKind.Bytes)
         {
             w.Line($"public {FieldPropertyType(f)} {f.Name} {{ get; set; }} = null!;");
@@ -421,6 +477,68 @@ internal static class MessageEmitter
         }
         w.Line($"public {FieldPropertyType(f)} {f.Name} {{ get; set; }}");
     }
+
+    /// <summary>
+    /// Writes a scalar with explicit presence - a proto3 <c>optional</c> field - the way protoc writes one: a
+    /// value, a flag saying whether it was set, and <c>Has</c>/<c>Clear</c> members to read or reset that flag.
+    /// </summary>
+    /// <remarks>
+    /// The value lives in a backing field rather than an auto-property, because every write has to raise the flag
+    /// as well. That flag is the whole point of the mapping: a proto3 scalar has no presence of its own, so before
+    /// this the contract's <c>nullable: true</c> arrived as a 0 or an empty string that a consumer could not tell
+    /// from a value nobody had sent. A string or a <c>bytes</c> field keeps a nullable backing field and reads it
+    /// back as the protobuf default, exactly as the other reference-typed fields do.
+    /// </remarks>
+    /// <param name="w">The writer.</param>
+    /// <param name="f">The field.</param>
+    private static void EmitOptionalProperty(CodeWriter w, FieldModel f)
+    {
+        var backing = IsNullableBacking(f) ? "_field_" + f.Name : "_value_" + f.Name;
+        var backingType = IsNullableBacking(f) ? FieldPropertyType(f) + "?" : FieldPropertyType(f);
+
+        w.Line($"private {backingType} {backing};");
+        w.Line($"private bool _has_{f.Name};");
+        w.Line();
+        w.Line($"public bool {PresenceName(f)} => _has_{f.Name};");
+        w.Line();
+        w.Line($"public void Clear{f.Name}()");
+        w.Line("{");
+        w.Open();
+        w.Line($"_has_{f.Name} = false;");
+        w.Line($"{backing} = {(IsNullableBacking(f) ? "null" : "default")};");
+        w.Close();
+        w.Line("}");
+        w.Line();
+        w.Line($"public {FieldPropertyType(f)} {f.Name}");
+        w.Line("{");
+        w.Open();
+        w.Line(IsNullableBacking(f)
+            ? $"get {{ return {backing} ?? {EmptyValue(f)}; }}"
+            : $"get {{ return {backing}; }}");
+        w.Line($"set {{ {backing} = value; _has_{f.Name} = true; }}");
+        w.Close();
+        w.Line("}");
+    }
+
+    /// <summary>
+    /// The member that says whether an optional field was set. Answered in one place, because the gateway asks the
+    /// same question of the same field and used to answer it again by comparing the value with its default.
+    /// </summary>
+    /// <param name="f">The field.</param>
+    /// <returns>The property name.</returns>
+    internal static string PresenceName(FieldModel f) => "Has" + f.Name;
+
+    /// <summary>True when a field's value is held in a nullable backing field, as strings and bytes are.</summary>
+    /// <param name="f">The field.</param>
+    /// <returns>Whether the backing field is a reference.</returns>
+    private static bool IsNullableBacking(FieldModel f)
+        => f.Kind is FieldKind.String or FieldKind.Bytes;
+
+    /// <summary>The value a nullable backing field reads back as when it was never set.</summary>
+    /// <param name="f">The field.</param>
+    /// <returns>The protobuf default, spelled as C#.</returns>
+    private static string EmptyValue(FieldModel f)
+        => f.Kind == FieldKind.Bytes ? "global::Google.Protobuf.ByteString.Empty" : "string.Empty";
 
     private static readonly System.Collections.Generic.Dictionary<string, string> WellKnownCsTypes = new()
     {
@@ -466,6 +584,16 @@ internal static class MessageEmitter
         => f.Kind is FieldKind.Message or FieldKind.Bytes || (f.Kind == FieldKind.String && !f.IsRepeated);
 
     private static string ConstTag(FieldModel f) => "Tag_" + f.Number + "_" + f.Name;
+
+    /// <summary>
+    /// The call that writes one value of a field, with the cast an enumeration's <c>int</c> value needs.
+    /// </summary>
+    /// <param name="f">The field.</param>
+    /// <returns>The statement, semicolon included.</returns>
+    private static string WriteValueExpression(FieldModel f)
+        => f.Kind == FieldKind.Enum
+            ? $"output.WriteInt32((int){f.Name});"
+            : $"output.{Wire.WriteCall(f.Kind)}({f.Name});";
 
     /// <summary>
     /// Produces the decimal byte arguments for <c>output.WriteRawTag(...)</c> by encoding

@@ -51,6 +51,12 @@
     <!-- CLI tooling (stable System.CommandLine) -->
     <PackageVersion Include="System.CommandLine" Version="2.0.12" />
 
+    <!--
+      Code quality: the analyzer SonarCloud runs, so a finding shows up in a local build instead of after a push.
+      It is a development dependency only (PrivateAssets=all in Directory.Build.props); it never reaches a package.
+    -->
+    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.35.0.4138" />
+
     <!-- Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />

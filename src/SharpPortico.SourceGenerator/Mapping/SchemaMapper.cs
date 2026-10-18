@@ -38,6 +38,7 @@ internal sealed class SchemaMapper
     private readonly Dictionary<string, MessageModel> _messages = new(StringComparer.Ordinal);
     private readonly Dictionary<string, EnumModel> _enums = new(StringComparer.Ordinal);
     private readonly List<(string Name, string Existing, string Declared)> _enumConflicts = [];
+    private readonly List<(string Where, string Why)> _nullabilityLosses = [];
 
     /// <summary>Component schemas of the document being mapped; used to detect enum references.</summary>
     public IDictionary<string, OpenApiSchema>? ComponentSchemas => _document.Components?.Schemas;
@@ -57,6 +58,18 @@ internal sealed class SchemaMapper
     /// nobody wrote and a consumer something new to depend on.
     /// </remarks>
     public IReadOnlyList<(string Name, string Existing, string Declared)> EnumConflicts => _enumConflicts;
+
+    /// <summary>
+    /// Gets the nullable positions protobuf has no way to carry, recorded while mapping.
+    /// </summary>
+    /// <remarks>
+    /// A nullable scalar becomes a proto3 <c>optional</c> field, which is the whole answer. These are the
+    /// positions that answer does not reach: a repeated field cannot be null - absent and empty are the same
+    /// field - and it has no per-element presence either, so an element that was null reads back as the
+    /// element's default value. Recorded rather than dropped, because a contract that says "this may be null"
+    /// and a message that cannot say whether it was is a difference the caller has to know about.
+    /// </remarks>
+    public IReadOnlyList<(string Where, string Why)> NullabilityLosses => _nullabilityLosses;
 
     public SchemaMapper(OpenApiDocument document, CancellationToken ct)
     {
@@ -404,7 +417,9 @@ internal sealed class SchemaMapper
                 && owner.ComponentSchemas.TryGetValue(schema.Reference.Id, out var target)
                 && IsEnum(target);
             var kind = isEnum ? FieldKind.Enum : FieldKind.Message;
-            return new FieldModel(SanitizePascal(name), ToProtoName(name), ++fieldNo, kind, refName, refName);
+            return WithPresence(
+                new FieldModel(SanitizePascal(name), ToProtoName(name), ++fieldNo, kind, refName, refName),
+                schema);
         }
 
         // array -> repeated
@@ -418,7 +433,9 @@ internal sealed class SchemaMapper
         {
             var enumName = SanitizePascal(name) + "Enum";
             owner.MapEnum(enumName, schema);
-            return new FieldModel(SanitizePascal(name), ToProtoName(name), ++fieldNo, FieldKind.Enum, enumName, enumName);
+            return WithPresence(
+                new FieldModel(SanitizePascal(name), ToProtoName(name), ++fieldNo, FieldKind.Enum, enumName, enumName),
+                schema);
         }
 
         // inline object / nested message
@@ -447,13 +464,38 @@ internal sealed class SchemaMapper
         }
 
         // scalar
-        return MapScalarField(name, schema, ref fieldNo);
+        var scalar = MapScalarField(name, schema, ref fieldNo);
+        return scalar is null ? null : WithPresence(scalar, schema);
     }
+
+    /// <summary>
+    /// Gives the field proto3's explicit presence when the schema says its value may be null.
+    /// </summary>
+    /// <remarks>
+    /// One question, answered in one place: <c>nullable: true</c> on a singular scalar becomes the <c>optional</c>
+    /// label, and every guard in the emitted message then asks the field's own presence instead of comparing the
+    /// value with its default. A message field needs nothing, because a message field is already absent until it
+    /// is set, and a repeated field cannot have it - that loss is recorded instead (see
+    /// <see cref="NullabilityLosses"/>).
+    /// </remarks>
+    /// <param name="field">The field the property maps to.</param>
+    /// <param name="schema">The property's schema.</param>
+    /// <returns>The field, marked optional when the schema allows null and the kind can carry presence.</returns>
+    private static FieldModel WithPresence(FieldModel field, OpenApiSchema schema)
+        => schema.Nullable && SupportsPresence(field.Kind) ? field with { IsOptional = true } : field;
+
+    /// <summary>True when proto3's <c>optional</c> label applies to a field of this kind.</summary>
+    /// <param name="kind">The field kind.</param>
+    /// <returns>Whether the kind can carry the label.</returns>
+    private static bool SupportsPresence(FieldKind kind)
+        => kind is not (FieldKind.Message or FieldKind.Timestamp);
 
     private static FieldModel? MapArrayProperty(SchemaMapper owner, string name, OpenApiSchema schema, ref int fieldNo)
     {
         var items = schema.Items;
         var repeatedName = SanitizePascal(name);
+
+        RecordNullability(owner, name, schema, items);
 
         // An array schema that says "any JSON value" repeats protobuf's type for one, which is what
         // google.protobuf.ListValue is.
@@ -516,6 +558,37 @@ internal sealed class SchemaMapper
             return scalarRepeated with { IsRepeated = true };
         }
         return new FieldModel(repeatedName, ToProtoName(name), ++fieldNo, FieldKind.String, StringFieldType, StringFieldType, IsRepeated: true);
+    }
+
+    /// <summary>
+    /// Records the nullable positions a repeated field cannot carry: the array itself, and each of its elements.
+    /// </summary>
+    /// <remarks>
+    /// Neither is mappable, and neither is a reason to refuse the contract: the field still maps, and what it
+    /// cannot say is reported (<c>SP2000</c>) rather than left for the caller to infer from a repeated field that
+    /// looks identical however it was filled in.
+    /// </remarks>
+    /// <param name="owner">The mapper collecting the losses.</param>
+    /// <param name="name">The property's contract name, which the diagnostic names.</param>
+    /// <param name="schema">The array's schema.</param>
+    /// <param name="items">The element schema, when the array declares one.</param>
+    private static void RecordNullability(SchemaMapper owner, string name, OpenApiSchema schema, OpenApiSchema? items)
+    {
+        if (schema.Nullable)
+        {
+            owner._nullabilityLosses.Add((
+                ToProtoName(name),
+                "a repeated field cannot be null, so an array that was never set and an array that was set to "
+                + "nothing are the same field"));
+        }
+
+        if (items is { Nullable: true })
+        {
+            owner._nullabilityLosses.Add((
+                ToProtoName(name) + "[]",
+                "a repeated field has no per-element presence, so an element that was null reads back as the "
+                + "element's default value"));
+        }
     }
 
     /// <summary>
