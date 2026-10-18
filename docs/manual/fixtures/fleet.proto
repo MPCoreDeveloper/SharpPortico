@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package fleet31service;
+
+import "google/protobuf/struct.proto";
+
+option csharp_namespace = "Fleet31Service";
+
+enum KindEnum
+{
+    TRUCK = 0;
+}
+
+message Vehicle
+{
+    int64 id = 1;
+    optional string callsign = 2;
+    KindEnum kind = 3;
+    google.protobuf.Value telemetry = 4;
+    repeated google.protobuf.Value bounds = 5;
+    bytes manifest = 6;
+    int32 model_year = 7;
+    ServiceWindow service_window = 8;
+    google.protobuf.Struct labels = 9;
+}
+
+message ServiceWindow
+{
+    string label = 1;
+}
+
+message ListVehiclesRequest
+{
+    int32 limit = 1;
+    int32 page = 2;
+}
+
+message ListVehiclesResponse
+{
+    repeated Vehicle items = 1;
+}
+
+message RegisterVehicleRequest
+{
+    Vehicle body = 1;
+}
+
+message RegisterVehicleResponse
+{
+    Vehicle data = 1;
+}
+
+message GetVehicleRequest
+{
+    int64 vehicle_id = 1;
+}
+
+message GetVehicleResponse
+{
+    Vehicle data = 1;
+}
+
+message OnVehicleRetiredRequest
+{
+    Vehicle body = 1;
+}
+
+message OnVehicleRetiredResponse
+{
+    bool has_value = 1;
+}
+
+service Fleet31Service
+{
+    rpc ListVehicles (ListVehiclesRequest) returns (ListVehiclesResponse);
+    rpc RegisterVehicle (RegisterVehicleRequest) returns (RegisterVehicleResponse);
+    rpc GetVehicle (GetVehicleRequest) returns (GetVehicleResponse);
+    rpc OnVehicleRetired (OnVehicleRetiredRequest) returns (OnVehicleRetiredResponse);
+}
+

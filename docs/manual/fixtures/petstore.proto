@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package petstoreservice;
+
+option csharp_namespace = "PetstoreService";
+
+enum StatusEnum
+{
+    AVAILABLE = 0;
+    PENDING = 1;
+    SOLD = 2;
+}
+
+message Pet
+{
+    int64 id = 1;
+    string name = 2;
+    StatusEnum status = 3;
+}
+
+message ListPetsRequest
+{
+    int32 limit = 1;
+    int32 page = 2;
+}
+
+message ListPetsResponse
+{
+    repeated Pet items = 1;
+}
+
+message CreatePetRequest
+{
+    Pet body = 1;
+}
+
+message CreatePetResponse
+{
+    Pet data = 1;
+}
+
+message GetPetRequest
+{
+    int64 pet_id = 1;
+}
+
+message GetPetResponse
+{
+    Pet data = 1;
+}
+
+service PetstoreService
+{
+    rpc ListPets (ListPetsRequest) returns (ListPetsResponse);
+    rpc CreatePet (CreatePetRequest) returns (CreatePetResponse);
+    rpc GetPet (GetPetRequest) returns (GetPetResponse);
+}
+

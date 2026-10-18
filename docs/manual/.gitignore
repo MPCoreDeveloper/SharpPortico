@@ -1,0 +1,5 @@
+# Generated intermediates from build-manual.py
+/build/
+__pycache__/
+*.py[cod]
+.pytest_cache/

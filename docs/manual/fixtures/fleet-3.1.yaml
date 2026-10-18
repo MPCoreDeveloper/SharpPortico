@@ -1,0 +1,101 @@
+# A 3.1 document, which is also what makes this the 3.1 sample: every construct below is one 3.0 could not
+# write, and the generator reads a 3.0 document internally - the downgrade is what this sample keeps honest.
+# Where a 3.1 construct has no protobuf equivalent, the build reports the loss instead of the field silently
+# changing meaning; see "Mapping rules" in docs/SharpPortico.md.
+openapi: 3.1.0
+info:
+  title: Fleet
+  version: "1.0.0"
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+paths:
+  /vehicles:
+    get:
+      operationId: listVehicles
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer }
+        - name: page
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          description: paged vehicles
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Vehicle" }
+    post:
+      operationId: registerVehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Vehicle" }
+      responses:
+        "201":
+          description: registered vehicle
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Vehicle" }
+  /vehicles/{vehicleId}:
+    get:
+      operationId: getVehicle
+      parameters:
+        - name: vehicleId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: a vehicle
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Vehicle" }
+# 3.1's own place for a callback the service calls: a webhook operation becomes an RPC like any other.
+webhooks:
+  vehicleRetired:
+    post:
+      operationId: onVehicleRetired
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Vehicle" }
+      responses:
+        "200":
+          description: accepted
+components:
+  schemas:
+    Vehicle:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        # A type array naming one real type is 3.1's way of writing `nullable: true`.
+        callsign: { type: [string, "null"] }
+        # A schema whose only allowed value is X is the one-member enumeration the mapper already reads.
+        kind: { const: truck }
+        # A union of several types is the JSON value protobuf has a type for.
+        telemetry: { type: [object, array] }
+        # A tuple whose positions differ is a repeated JSON value.
+        bounds:
+          type: array
+          prefixItems:
+            - { type: string }
+            - { type: integer }
+        # Base64 is the bytes it encodes, which protobuf has a type for.
+        manifest: { type: string, contentEncoding: base64 }
+        # 3.1 dropped the flag that made `minimum` exclusive and writes the bound itself.
+        modelYear: { type: integer, exclusiveMinimum: 0 }
+        # A definition below the root is hoisted to where the mapper looks.
+        serviceWindow: { $ref: "#/$defs/ServiceWindow" }
+        # A free-form object is google.protobuf.Struct.
+        labels:
+          type: object
+          additionalProperties: true
+$defs:
+  ServiceWindow:
+    type: object
+    properties:
+      label: { type: string }

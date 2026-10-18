@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package sinkservice;
+
+import "google/protobuf/struct.proto";
+
+option csharp_namespace = "SinkService";
+
+enum WidgetKind
+{
+    GEAR = 0;
+    SPROCKET = 1;
+}
+
+enum StateEnum
+{
+    ON = 0;
+    OFF = 1;
+}
+
+message Dimensions
+{
+    double width = 1;
+    double height = 2;
+}
+
+message Widget
+{
+    double width = 1;
+    double height = 2;
+    string id = 3;
+    string label = 4;
+    float price = 5;
+    int32 weight = 6;
+    int64 big = 7;
+    bool active = 8;
+    optional string note = 9;
+    optional double rating = 10;
+    optional string serial_no = 11;
+    repeated int64 counts = 12;
+    repeated string matrix = 13;
+    WidgetKind kind = 14;
+    repeated WidgetKind tags = 15;
+    google.protobuf.Struct labels = 16;
+    google.protobuf.Struct meta = 17;
+    string anything = 18;
+    string both = 19;
+    string created = 20;
+    bytes blob = 21;
+    bytes photo = 22;
+    Widget child = 23;
+    repeated Widget children = 24;
+    Dimensions dims = 25;
+    StateEnum state = 26;
+}
+
+message ListWidgetsRequest
+{
+    WidgetKind kind = 1;
+    repeated string tags = 2;
+}
+
+message ListWidgetsResponse
+{
+    repeated Widget items = 1;
+}
+
+message CreateWidgetRequest
+{
+    Widget body = 1;
+}
+
+message CreateWidgetResponse
+{
+    Widget data = 1;
+}
+
+message DeleteWidgetRequest
+{
+    string id = 1;
+}
+
+message DeleteWidgetResponse
+{
+    bool has_value = 1;
+}
+
+message UploadPhotoRequest
+{
+    string id = 1;
+    bytes body = 2;
+}
+
+message UploadPhotoResponse
+{
+    bytes body = 1;
+}
+
+service SinkService
+{
+    rpc ListWidgets (ListWidgetsRequest) returns (ListWidgetsResponse);
+    rpc CreateWidget (CreateWidgetRequest) returns (CreateWidgetResponse);
+    rpc DeleteWidget (DeleteWidgetRequest) returns (DeleteWidgetResponse);
+    rpc UploadPhoto (UploadPhotoRequest) returns (UploadPhotoResponse);
+}
+

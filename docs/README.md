@@ -1,11 +1,12 @@
 # SharpPortico documentation — 1.5.0
 
-Five documents, each answering a different question. Everything here describes **1.5.0**, the version in
+The documents below answer different questions. Everything here describes **1.5.0**, the version in
 `Directory.Build.props` and on nuget.org.
 
 | Document | Answers |
 | --- | --- |
 | [README](../README.md) | what SharpPortico is, in one page: the pitch, the architecture, the mapping table, the CLI |
+| [Manual](SharpPortico-Manual-1.5.0.pdf) | the complete book: the mapping in depth, the generated surface, the gateway, the CLI, diagnostics, and a worked example; source in [`manual/src`](manual/src), built with `python docs/manual/build-manual.py` |
 | [Developer guide](SharpPortico.md) | how to adopt it: packages, declaration, proxy mode, mapping rules, samples, configuration |
 | [Reference](reference.md) | what exists: every option and its default, the generated surface member by member, the runtime contracts, the CLI, and how each claim is verified |
 | [Presence](presence.md) | what a `nullable: true` property becomes: proto3 `optional`, `Has…`/`Clear…`, round-trip semantics, gateway behaviour, upgrading from 1.4.0 |

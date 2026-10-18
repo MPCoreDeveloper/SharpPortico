@@ -1,0 +1,176 @@
+openapi: 3.0.3
+info:
+  title: Kitchen Sink
+  version: "1.0.0"
+servers:
+  - url: https://api.example.com/v1
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      parameters:
+        - name: kind
+          in: query
+          schema:
+            $ref: "#/components/schemas/WidgetKind"
+        - name: tags
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        "200":
+          description: paged widgets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Widget"
+    post:
+      operationId: createWidget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Widget"
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Widget"
+  /widgets/{id}:
+    delete:
+      operationId: deleteWidget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: gone
+  /widgets/{id}/photo:
+    put:
+      operationId: uploadPhoto
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: the stored photo
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+components:
+  schemas:
+    WidgetKind:
+      type: string
+      enum: [gear, sprocket]
+    Dimensions:
+      type: object
+      properties:
+        width:
+          type: number
+          format: double
+        height:
+          type: number
+          format: double
+    Widget:
+      allOf:
+        - $ref: "#/components/schemas/Dimensions"
+        - type: object
+          required: [label]
+          properties:
+            id:
+              type: string
+              format: uuid
+            label:
+              type: string
+              minLength: 1
+            price:
+              type: number
+              format: float
+            weight:
+              type: integer
+              format: int32
+            big:
+              type: integer
+              format: int64
+            active:
+              type: boolean
+            note:
+              type: string
+              nullable: true
+            rating:
+              type: number
+              nullable: true
+            serialNo:
+              type: string
+              nullable: true
+            counts:
+              type: array
+              items:
+                type: integer
+                format: int64
+            matrix:
+              type: array
+              items:
+                type: array
+                items:
+                  type: number
+            kind:
+              $ref: "#/components/schemas/WidgetKind"
+            tags:
+              type: array
+              items:
+                $ref: "#/components/schemas/WidgetKind"
+            labels:
+              type: object
+              additionalProperties:
+                type: string
+            meta:
+              type: object
+              additionalProperties: true
+            anything: {}
+            both:
+              oneOf:
+                - type: string
+                - type: integer
+            created:
+              type: string
+              format: date-time
+            blob:
+              type: string
+              format: byte
+            photo:
+              type: string
+              format: binary
+            child:
+              $ref: "#/components/schemas/Widget"
+            children:
+              type: array
+              items:
+                $ref: "#/components/schemas/Widget"
+            dims:
+              $ref: "#/components/schemas/Dimensions"
+            state:
+              type: string
+              enum: [on, off]

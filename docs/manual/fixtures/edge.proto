@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package edgeservice;
+
+option csharp_namespace = "EdgeService";
+
+enum Level
+{
+    N1 = 1;
+    N2 = 2;
+    N3 = 3;
+}
+
+enum Priority
+{
+    N0 = 0;
+    N10 = 10;
+    N20 = 20;
+}
+
+message Strange
+{
+    Level level = 1;
+    Priority priority = 2;
+    string u_r_l = 3;
+    int32 x_rate_limit = 4;
+    string camel_case = 5;
+    string snake_case = 6;
+}
+
+message Op0POSTRequest
+{
+    string x_trace_id = 1;
+    string session = 2;
+    string u_r_l = 3;
+}
+
+message Op0POSTData
+{
+    string value = 1;
+}
+
+message Op0POSTResponse
+{
+    Op0POSTData data = 1;
+}
+
+message GetThingByIdRequest
+{
+    bool has_value = 1;
+}
+
+message GetThingByIdData
+{
+    int32 total = 1;
+    double ratio = 2;
+    string when = 3;
+    string uid = 4;
+}
+
+message GetThingByIdResponse
+{
+    GetThingByIdData data = 1;
+}
+
+service EdgeService
+{
+    rpc Op0POST (Op0POSTRequest) returns (Op0POSTResponse);
+    rpc GetThingById (GetThingByIdRequest) returns (GetThingByIdResponse);
+}
+

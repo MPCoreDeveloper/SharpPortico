@@ -1,0 +1,72 @@
+openapi: 3.0.3
+info:
+  title: Edge Cases
+  version: "1.0.0"
+servers:
+  - url: https://api.example.com
+paths:
+  /things:
+    post:
+      parameters:
+        - name: X-Trace-Id
+          in: header
+          schema:
+            type: string
+        - name: session
+          in: cookie
+          schema:
+            type: string
+        - name: URL
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: string
+    get:
+      operationId: get_thing-by.id
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  ratio:
+                    type: number
+                  when:
+                    type: string
+                    format: date-time
+                  uid:
+                    type: string
+                    format: uuid
+components:
+  schemas:
+    Level:
+      type: integer
+      enum: [1, 2, 3]
+    Priority:
+      type: integer
+      enum: [0, 10, 20]
+    Strange:
+      type: object
+      properties:
+        level:
+          $ref: "#/components/schemas/Level"
+        priority:
+          $ref: "#/components/schemas/Priority"
+        URL:
+          type: string
+        x-rate-limit:
+          type: integer
+        camelCase:
+          type: string
+        snake_case:
+          type: string
