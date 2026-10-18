@@ -41,7 +41,6 @@ public sealed partial class DefaultAuditLogger : IProxyAuditLogger
         if (!_logger.IsEnabled(LogLevel.Information)) return;
 
         ProxyCallLogged(
-            _logger,
             entry.ServiceName,
             entry.RpcName,
             entry.ClientKeyId ?? "-",
@@ -55,13 +54,14 @@ public sealed partial class DefaultAuditLogger : IProxyAuditLogger
     // are passed as typed parameters instead of a params array (CA1848/CA1873). The placeholder
     // names and the template text are unchanged because log sinks parse "service=", "cacheHit="
     // and "at=" out of this line. EventId stays 0, as it was for the hand-written LogInformation
-    // call: left out, the generator would derive a hash of the method name instead.
+    // call: left out, the generator would derive a hash of the method name instead. The method is
+    // an instance method, not a static one taking the logger, so the seven values are all the
+    // parameters it needs - one more would be a parameter list S107 rightly complains about.
     [LoggerMessage(
         EventId = 0,
         Level = LogLevel.Information,
         Message = "[portico-audit] service={Service} rpc={Rpc} client={ClientKey} peer={Peer} cacheHit={CacheHit} http={HttpStatus} at={At:O}")]
-    private static partial void ProxyCallLogged(
-        ILogger logger,
+    private partial void ProxyCallLogged(
         string service,
         string rpc,
         string clientKey,
