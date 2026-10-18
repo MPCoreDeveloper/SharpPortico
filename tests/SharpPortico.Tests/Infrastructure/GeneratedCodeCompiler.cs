@@ -79,7 +79,7 @@ internal static class GeneratedCodeCompiler
         return references.ToImmutable();
     }
 
-    private static IEnumerable<string> TrustedAssemblies() =>
+    private static string[] TrustedAssemblies() =>
         AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") is string trusted
             ? trusted.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
             : [];

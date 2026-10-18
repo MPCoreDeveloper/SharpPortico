@@ -23,7 +23,7 @@ public interface IClientKeyValidator
 /// </summary>
 public sealed class UlidClientKeyValidator : IClientKeyValidator
 {
-    private readonly IReadOnlySet<string> _allowedKeys;
+    private readonly HashSet<string> _allowedKeys;
     private readonly Func<string?, bool>? _customValidate;
 
     public UlidClientKeyValidator(IEnumerable<string> allowedKeys, Func<string?, bool>? customValidate = null)

@@ -111,7 +111,7 @@ internal static class GeneratorTestDriver
             ServiceNameSuffix: "Service",
             LargePayloadStreamingThresholdBytes: 1_000_000);
 
-    private static IReadOnlyDictionary<string, string> Emit(GrpcModel model, OpenApiWorkItem item)
+    private static ImmutableDictionary<string, string> Emit(GrpcModel model, OpenApiWorkItem item)
         => CodeEmitter.Emit(model, item)
             .ToImmutableDictionary(static pair => pair.HintName, static pair => pair.Text, StringComparer.Ordinal);
 

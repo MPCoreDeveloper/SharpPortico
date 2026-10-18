@@ -565,7 +565,7 @@ internal static class OpenApi31Downgrade
     /// </summary>
     /// <param name="prefix">The tuple's positions.</param>
     /// <returns>The element schema, or <c>null</c>.</returns>
-    private static YamlNode? SharedElementType(YamlSequenceNode prefix)
+    private static YamlMappingNode? SharedElementType(YamlSequenceNode prefix)
     {
         string? sharedType = null;
         string? sharedFormat = null;

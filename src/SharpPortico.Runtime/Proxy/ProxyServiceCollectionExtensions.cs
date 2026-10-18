@@ -14,8 +14,8 @@ public static class ProxyServiceCollectionExtensions
     /// <summary>Registers shared SharpPortico proxy services.</summary>
     public static IServiceCollection AddSharpPorticoProxyCore(this IServiceCollection services, ProxyOptions options)
     {
-        if (services is null) throw new ArgumentNullException(nameof(services));
-        if (options is null) throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
 
         services.AddHttpClient();
         services.AddMemoryCache();
@@ -38,7 +38,7 @@ public static class ProxyServiceCollectionExtensions
     public static IServiceCollection AddSharpPorticoKeyProvider(this IServiceCollection services,
         Func<string?, string?> keyResolver)
     {
-        if (keyResolver is null) throw new ArgumentNullException(nameof(keyResolver));
+        ArgumentNullException.ThrowIfNull(keyResolver);
         services.AddSingleton<SharpPortico.Proxy.IKeyProvider>(_ => new DelegateKeyProvider(keyResolver));
         return services;
     }
@@ -47,7 +47,7 @@ public static class ProxyServiceCollectionExtensions
     public static IServiceCollection AddSharpPorticoClientKeys(this IServiceCollection services,
         IEnumerable<string> allowedKeys, Func<string?, bool>? customValidate = null)
     {
-        if (allowedKeys is null) throw new ArgumentNullException(nameof(allowedKeys));
+        ArgumentNullException.ThrowIfNull(allowedKeys);
         services.AddSingleton<SharpPortico.Proxy.IClientKeyValidator>(_ =>
             new UlidClientKeyValidator(allowedKeys, customValidate));
         return services;

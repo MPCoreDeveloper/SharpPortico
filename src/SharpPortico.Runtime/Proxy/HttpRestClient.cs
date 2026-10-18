@@ -63,7 +63,7 @@ public sealed class HttpRestClient : IRestClient
                 {
                     var idx = path.IndexOf(token, StringComparison.OrdinalIgnoreCase);
                     if (idx < 0) break;
-                    path = path.Substring(0, idx) + escaped + path.Substring(idx + token.Length);
+                    path = string.Concat(path.AsSpan(0, idx), escaped.AsSpan(), path.AsSpan(idx + token.Length));
                 }
             }
         }

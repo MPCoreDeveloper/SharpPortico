@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace SharpPortico.Tests.Infrastructure;
@@ -17,9 +18,9 @@ internal static class LargeSpecBuilder
         sb.AppendLine("paths:");
         for (var i = 0; i < operations; i++)
         {
-            sb.AppendLine($"  /resource{i}/{{id}}:");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"  /resource{i}/{{id}}:");
             sb.AppendLine($"    get:");
-            sb.AppendLine($"      operationId: getResource{i}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"      operationId: getResource{i}");
             sb.AppendLine($"      parameters:");
             sb.AppendLine($"        - {{ name: id, in: path, required: true, schema: {{ type: integer, format: int64 }} }}");
             sb.AppendLine($"      responses:");
@@ -27,14 +28,14 @@ internal static class LargeSpecBuilder
             sb.AppendLine($"          description: ok");
             sb.AppendLine($"          content:");
             sb.AppendLine($"            application/json:");
-            sb.AppendLine($"              schema: {{ $ref: '#/components/schemas/Resource{i}' }}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"              schema: {{ $ref: '#/components/schemas/Resource{i}' }}");
         }
 
         sb.AppendLine("components:");
         sb.AppendLine("  schemas:");
         for (var i = 0; i < operations; i++)
         {
-            sb.AppendLine($"    Resource{i}:");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"    Resource{i}:");
             sb.AppendLine("      type: object");
             sb.AppendLine("      properties:");
             for (var p = 0; p < propertiesPerSchema; p++)
@@ -46,7 +47,7 @@ internal static class LargeSpecBuilder
                     2 => "type: boolean",
                     _ => "type: number, format: double",
                 };
-                sb.AppendLine($"        prop{p}: {{ {type} }}");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"        prop{p}: {{ {type} }}");
             }
         }
 

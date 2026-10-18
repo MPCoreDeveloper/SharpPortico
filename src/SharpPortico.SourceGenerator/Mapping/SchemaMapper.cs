@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Microsoft.OpenApi.Any;
@@ -134,8 +135,8 @@ internal sealed class SchemaMapper
             {
                 string rawName;
                 long? rawNum = null;
-                if (anyVal is OpenApiInteger oi) { rawNum = oi.Value; rawName = oi.Value.ToString(); }
-                else if (anyVal is OpenApiLong ol) { rawNum = ol.Value; rawName = ol.Value.ToString(); }
+                if (anyVal is OpenApiInteger oi) { rawNum = oi.Value; rawName = Invariant(oi.Value); }
+                else if (anyVal is OpenApiLong ol) { rawNum = ol.Value; rawName = Invariant(ol.Value); }
                 else if (anyVal is OpenApiString os) { rawName = os.Value; }
                 else { rawName = "VALUE_" + number; }
 
@@ -147,6 +148,14 @@ internal sealed class SchemaMapper
 
         return builder.ToImmutable();
     }
+
+    /// <summary>
+    /// A number the way generated source has to spell it: invariant digits, whatever locale the build
+    /// machine runs under, because the result becomes an identifier and not user-facing text.
+    /// </summary>
+    /// <param name="value">The number.</param>
+    /// <returns>The invariant text.</returns>
+    private static string Invariant(long value) => value.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Maps an object schema (or array of objects) to a <see cref="MessageModel"/> and registers it.
